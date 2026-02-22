@@ -42,6 +42,18 @@ export default function App() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  
+
+useEffect(() => {
+  if (user?.role === 'admin' && activeTab === 'payments') {
+    fetch('/api/admin/all-payments') // Make sure backend has this route!
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setAllPayments(data);
+      })
+      .catch(err => console.error("Error fetching admin payments:", err));
+  }
+}, [activeTab, user]);
 
   // WebSocket Connection
   useEffect(() => {

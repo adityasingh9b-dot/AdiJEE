@@ -107,6 +107,17 @@ app.post("/api/payments", async (req, res) => {
   res.json({ success: true });
 });
 
+// Add this in api/index.ts
+app.get("/api/admin/all-payments", async (req, res) => {
+  try {
+    const snapshot = await rtdb.ref("payments").once("value");
+    const data = formatFirebaseData(snapshot).reverse(); // Newest first
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch payments" });
+  }
+});
+
 app.get("/api/payments/:studentId", async (req, res) => {
   const snapshot = await rtdb.ref("payments").once("value");
   const allPayments = formatFirebaseData(snapshot);
