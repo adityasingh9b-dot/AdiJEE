@@ -100,6 +100,26 @@ app.delete("/api/banners/:id", async (req, res) => {
   res.json({ success: true });
 });
 
+// GET current live class status
+app.get("/api/live-class", async (req, res) => {
+  const snapshot = await rtdb.ref("live_sessions/current").once("value");
+  res.json(snapshot.val() || { is_active: false });
+});
+
+// GET announcements
+app.get("/api/announcements", async (req, res) => {
+  const snapshot = await rtdb.ref("announcements").once("value");
+  res.json(formatFirebaseData(snapshot).reverse());
+});
+
+// POST announcements
+app.post("/api/announcements", async (req, res) => {
+  const { content } = req.body;
+  const newRef = rtdb.ref("announcements").push();
+  await newRef.set({ content, created_at: Date.now() });
+  res.json({ success: true });
+});
+
 app.post("/api/payments", async (req, res) => {
   const { student_id, amount, screenshot_url } = req.body;
   const paymentRef = rtdb.ref("payments").push();
@@ -131,6 +151,18 @@ app.post("/api/live-class", async (req, res) => {
     meeting_id, is_active, invited_students: invited_students || [], updatedAt: Date.now()
   });
   res.json({ success: true });
+});
+
+// --- Add this route to fix the Delete Error ---
+app.delete("/api/payments/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await rtdb.ref(`payments/${id}`).remove();
+    res.json({ success: true, message: "Payment record deleted" });
+  } catch (error) {
+    console.error("Delete Payment Error:", error);
+    res.status(500).json({ error: "Failed to delete payment" });
+  }
 });
 
 app.post("/api/ask-jee", (req, res) => {
