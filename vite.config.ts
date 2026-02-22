@@ -17,15 +17,13 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      // ✅ ADD THE PROXY HERE
       proxy: {
         '/api': {
-          target: 'http://localhost:3000',
+          target: 'http://localhost:3000', // Local Express Server
           changeOrigin: true,
           secure: false,
         },
       },
-      // HMR settings
       hmr: process.env.DISABLE_HMR !== 'true',
     },
   };
