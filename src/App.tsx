@@ -110,9 +110,11 @@ export default function App() {
     fetch('/api/live-class').then(res => res.json()).then(setLiveClass);
     
     if (user.role === 'admin') {
-      fetch('/api/students').then(res => res.json()).then(setStudents);
-      fetch('/api/payments').then(res => res.json()).then(setAllPayments);
-    }
+  fetch('/api/students').then(res => res.json()).then(setStudents);
+  // Humne backend mein /api/admin/all-payments banaya hai
+  fetch('/api/admin/all-payments').then(res => res.json()).then(setAllPayments);
+}
+
   }, [user]);
 
   if (!user) {
@@ -520,58 +522,55 @@ export default function App() {
     </div>
   );
 
-  const renderAdminPayments = () => (
-    <div className="space-y-6 pb-24">
-      <h2 className="text-2xl font-display font-bold">Payment Monitoring</h2>
-      <div className="space-y-4">
-        {allPayments.map(p => (
-          <div key={p.id} className="glass p-4 rounded-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold">{p.student_name}</p>
-                <p className="text-xs text-slate-400">₹{p.amount} • {new Date(p.created_at).toLocaleDateString()}</p>
-              </div>
-              <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                p.status === 'approved' ? 'bg-brand-accent/20 text-brand-accent' : 'bg-yellow-500/20 text-yellow-500'
-              }`}>
-                {p.status}
-              </div>
+const renderAdminPayments = () => (
+  <div className="space-y-6 pb-24">
+    <h2 className="text-2xl font-display font-bold text-white">Fee Verifications</h2>
+    <div className="space-y-4">
+      {allPayments.length === 0 && <p className="text-slate-500 text-center py-10">No screenshots yet.</p>}
+      {allPayments.map(p => (
+        <div key={p.id} className="glass p-4 rounded-2xl border border-white/5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-white">{p.student_name || 'N/A'}</p>
+              <p className="text-[10px] text-brand-accent">{p.student_phone || 'No Phone'}</p>
             </div>
-            
+            <button 
+              onClick={async () => {
+                if(confirm('Delete this record permanently?')) {
+                  await fetch(`/api/payments/${p.id}`, { method: 'DELETE' });
+                  setAllPayments(allPayments.filter(item => item.id !== p.id));
+                }
+              }}
+              className="text-red-500 p-2 hover:bg-red-500/10 rounded-xl transition-colors"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
+          
+          <div className="relative group">
             <img 
               src={p.screenshot_url} 
-              alt="Screenshot" 
-              className="w-full h-40 object-cover rounded-xl cursor-pointer"
-              onClick={() => window.open(p.screenshot_url, '_blank')}
+              alt="Fee Screenshot" 
+              className="w-full h-40 object-cover rounded-xl border border-white/10"
               referrerPolicy="no-referrer"
             />
-
-            {p.status === 'pending' && (
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => {
-                    fetch(`/api/payments/${p.id}`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ status: 'approved' })
-                    }).then(() => fetch('/api/payments').then(res => res.json()).then(setAllPayments));
-                  }}
-                  className="flex-1 bg-brand-accent text-brand-primary py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1"
-                >
-                  <Check size={14} /> Approve
-                </button>
-                <button 
-                  className="flex-1 bg-red-500/20 text-red-500 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1"
-                >
-                  <X size={14} /> Reject
-                </button>
-              </div>
-            )}
+            <button 
+              onClick={() => window.open(p.screenshot_url, '_blank')}
+              className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-3 py-1 rounded-lg backdrop-blur-md"
+            >
+              View Full
+            </button>
           </div>
-        ))}
-      </div>
+          
+          <div className="flex justify-between items-center text-[10px]">
+             <span className="text-slate-400">Date: {new Date(p.created_at).toLocaleDateString()}</span>
+             <span className="text-brand-accent font-bold">₹{p.amount || '0'}</span>
+          </div>
+        </div>
+      ))}
     </div>
-  );
+  </div>
+);
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col">
@@ -662,7 +661,7 @@ export default function App() {
             {activeTab === 'dashboard' && renderDashboard()}
             {activeTab === 'content' && renderContent()}
             {activeTab === 'bot' && <DoubtBot />}
-            {activeTab === 'payments' && (user.role === 'admin' ? renderAdminPayments() : <PaymentSection studentId={user.id} />)}
+            {activeTab === 'payments' && (user.role === 'admin' ? renderAdminPayments() : <PaymentSection user={user} /> )}
           </motion.div>
         </AnimatePresence>
       </main>

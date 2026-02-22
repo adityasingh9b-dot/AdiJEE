@@ -147,18 +147,55 @@ app.delete("/api/banners/:id", async (req, res) => {
   }
 });
 
-// Payments Routes
+// 1. Student Payment Submit Karega
 app.post("/api/payments", async (req, res) => {
   try {
-    const { student_id, amount, screenshot_url } = req.body;
+    const { student_id, student_name, student_phone, amount, screenshot_url } = req.body;
+    
+    // Validation
+    if (!student_id || !screenshot_url) {
+      return res.status(400).json({ error: "Details ya screenshot missing hai" });
+    }
+
     const paymentRef = rtdb.ref("payments").push();
-    await paymentRef.set({ student_id, amount, screenshot_url, status: 'pending', created_at: Date.now() });
-    res.json({ success: true });
+    await paymentRef.set({
+      student_id,
+      student_name: student_name || "Unknown",
+      student_phone: student_phone || "N/A",
+      amount: amount || "0",
+      screenshot_url,
+      status: 'pending',
+      created_at: Date.now()
+    });
+    res.json({ success: true, message: "Screenshot upload ho gaya!" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// 2. Sirf Admin ke liye: Saare payments dekhne ke liye
+app.get("/api/admin/all-payments", async (req, res) => {
+  try {
+    const snapshot = await rtdb.ref("payments").once("value");
+    // Reverse taaki naya payment sabse upar dikhe
+    res.json(formatFirebaseData(snapshot).reverse());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Admin Delete Karega (Screenshot remove karne ke liye)
+app.delete("/api/payments/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await rtdb.ref(`payments/${id}`).remove();
+    res.json({ success: true, message: "Payment record deleted by Admin" });
+  } catch (err: any) {
+    res.status(500).json({ error: "Delete fail ho gaya" });
+  }
+});
+
+// 4. Student Sirf Apne Payments Dekhega
 app.get("/api/payments/:studentId", async (req, res) => {
   try {
     const snapshot = await rtdb.ref("payments").once("value");

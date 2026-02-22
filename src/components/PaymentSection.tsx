@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { QrCode, Upload, History, CheckCircle, Clock, ShieldCheck, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { User } from '../types'; // Ensure you import your User type
 
 interface PaymentSectionProps {
-  studentId: number;
+  user: User; // Changed from studentId: number to user: User
 }
 
-export const PaymentSection: React.FC<PaymentSectionProps> = ({ studentId }) => {
+export const PaymentSection: React.FC<PaymentSectionProps> = ({ user }) => {
   const [uploading, setUploading] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const CLOUD_NAME = "do7jfmqqf";
-  const UPLOAD_PRESET = "adijee_payments"; // Ensure this is 'Unsigned' in Cloudinary settings
+  const UPLOAD_PRESET = "adijee_payments"; 
 
   const fetchHistory = () => {
-    fetch(`/api/payments/${studentId}`)
+    // Fetch specifically for this student
+    fetch(`/api/payments/${user.id}`)
       .then(res => res.json())
       .then(setHistory)
       .catch(err => console.error("History fetch failed", err));
@@ -30,7 +32,6 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ studentId }) => 
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // File size validation (Max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setStatusMsg({ type: 'error', text: 'File too large. Max 5MB allowed.' });
       return;
@@ -40,7 +41,7 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ studentId }) => 
     setStatusMsg(null);
 
     try {
-      // 1. Upload to Cloudinary
+      // 1. Cloudinary Upload
       const formData = new FormData();
       formData.append('file', file);
       formData.append('upload_preset', UPLOAD_PRESET);
@@ -51,26 +52,27 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ studentId }) => 
       });
 
       const cloudData = await cloudRes.json();
-
       if (!cloudRes.ok) throw new Error(cloudData.error?.message || 'Cloudinary upload failed');
 
-      // 2. Save to your local SQLite + Firebase via server.ts
+      // 2. Database Save (Adding Name and Phone for Admin visibility)
       const dbRes = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          student_id: studentId,
+          student_id: user.id,
+          student_name: user.name, // Added this
+          student_phone: user.phone, // Added this
           amount: 5000,
-          screenshot_url: cloudData.secure_url // The real Cloudinary URL
+          screenshot_url: cloudData.secure_url
         })
       });
 
       if (dbRes.ok) {
-        setStatusMsg({ type: 'success', text: 'Proof submitted! Verification usually takes 2-4 hours.' });
+        setStatusMsg({ type: 'success', text: 'Proof submitted! Admin will verify soon.' });
         fetchHistory();
       }
     } catch (err: any) {
-      setStatusMsg({ type: 'error', text: err.message || 'Verification link failed.' });
+      setStatusMsg({ type: 'error', text: err.message || 'Submission failed.' });
     } finally {
       setUploading(false);
     }
@@ -79,7 +81,6 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ studentId }) => 
   return (
     <div className="space-y-4 max-w-md mx-auto">
       <div className="bg-[#111827] border border-white/10 p-6 rounded-3xl shadow-2xl relative overflow-hidden">
-        {/* Decorative Background Glow */}
         <div className="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
 
         <div className="flex items-center justify-between mb-8 relative z-10">
@@ -98,8 +99,8 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ studentId }) => 
         </div>
 
         <div className="flex flex-col items-center gap-6 relative z-10">
-          {/* Enhanced QR Card */}
           <div className="bg-white p-3 rounded-2xl shadow-inner shadow-black/20">
+            {/* Dynamic QR with correct UPI details */}
             <img 
               src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi://pay?pa=adijee@upi&pn=AdiJEE%20Institute&am=5000&cu=INR`} 
               alt="Payment QR" 
@@ -112,7 +113,6 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ studentId }) => 
             <p className="text-xs text-slate-400 mt-1 font-medium tracking-wide">UPI ID: <span className="text-emerald-400">adijee@upi</span></p>
           </div>
 
-          {/* Action Button */}
           <label className="w-full">
             <motion.div 
               whileTap={{ scale: 0.98 }}
@@ -123,7 +123,7 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ studentId }) => 
               }`}
             >
               {uploading ? <Clock className="animate-spin" size={20} /> : <Upload size={20} />}
-              {uploading ? 'Processing Signal...' : 'Upload Proof of Payment'}
+              {uploading ? 'Uploading...' : 'Upload Screenshot'}
             </motion.div>
             <input type="file" className="hidden" onChange={handleUpload} accept="image/*" disabled={uploading} />
           </label>
@@ -143,7 +143,6 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ studentId }) => 
         </div>
       </div>
 
-      {/* History Drawer */}
       <AnimatePresence>
         {showHistory && (
           <motion.div 
@@ -153,17 +152,14 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ studentId }) => 
             className="overflow-hidden"
           >
             <div className="bg-[#111827] border border-white/10 p-5 rounded-3xl space-y-4">
-              <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">Recent Transactions</h4>
-                <span className="text-[10px] text-slate-600 italic">Latest at top</span>
-              </div>
+              <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5 pb-2">Your Payment History</h4>
               
-              <div className="max-h-48 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+              <div className="max-h-48 overflow-y-auto space-y-2 no-scrollbar">
                 {history.length === 0 ? (
-                  <p className="text-center py-4 text-xs text-slate-600">No payment logs found.</p>
+                  <p className="text-center py-4 text-xs text-slate-600">No transactions yet.</p>
                 ) : (
                   history.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between p-3 bg-white/5 rounded-2xl hover:bg-white/10 transition-colors">
+                    <div key={p.id} className="flex items-center justify-between p-3 bg-white/5 rounded-2xl">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-white/5 rounded-lg">
                            <QrCode size={14} className="text-slate-400" />
@@ -173,10 +169,10 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ studentId }) => 
                           <p className="text-[9px] text-slate-500">{new Date(p.created_at).toLocaleDateString('en-IN')}</p>
                         </div>
                       </div>
-                      <div className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-widest uppercase ${
+                      <div className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase ${
                         p.status === 'approved' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-yellow-500/10 text-yellow-500'
                       }`}>
-                        {p.status}
+                        {p.status || 'pending'}
                       </div>
                     </div>
                   ))
