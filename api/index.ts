@@ -10,25 +10,35 @@ const app = express();
 app.use(express.json());
 
 // --- 1. FIREBASE INITIALIZATION ---
-// This handles both Local (file) and Vercel (Env Var)
-if (!admin.apps.length) {
-  let serviceAccount;
-  try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    } else {
-      // Local fallback
-      serviceAccount = require(path.join(process.cwd(), "serviceAccountKey.json"));
-    }
+let serviceAccount;
 
+try {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    // Vercel Environment Variable handling
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    
+    // Fix: Private key newlines fix for Vercel environments
+    if (typeof serviceAccount.private_key === 'string') {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    }
+  } else {
+    // Local fallback: dynamic import for ES Modules (Avoids 'require is not defined' error)
+    const { default: localKey } = await import(path.join(process.cwd(), "serviceAccountKey.json"), {
+      assert: { type: "json" }
+    });
+    serviceAccount = localKey;
+  }
+
+  if (!admin.apps.length) {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
       databaseURL: "https://adijee-9b776-default-rtdb.firebaseio.com"
     });
-  } catch (error) {
-    console.error("Firebase Init Error:", error);
   }
+} catch (error) {
+  console.error("Firebase Init Error:", error);
 }
+
 const rtdb = admin.database();
 
 const formatFirebaseData = (snapshot: any) => {
