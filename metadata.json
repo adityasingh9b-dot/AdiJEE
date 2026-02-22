@@ -1,0 +1,8 @@
+{
+  "name": "AdiJEE",
+  "description": "A premium, modern JEE Advanced Coaching platform with live classes, AI doubt solving, and seamless content management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
