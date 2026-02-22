@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { QrCode, Upload, History, CheckCircle, Clock, ShieldCheck, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User } from '../types'; // Ensure you import your User type
+import myQRCode from './assets/my-qr.png';
 
 interface PaymentSectionProps {
   user: User; // Changed from studentId: number to user: User
@@ -100,17 +101,16 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ user }) => {
 
         <div className="flex flex-col items-center gap-6 relative z-10">
           <div className="bg-white p-3 rounded-2xl shadow-inner shadow-black/20">
-            {/* Dynamic QR with correct UPI details */}
-            <img 
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi://pay?pa=adijee@upi&pn=AdiJEE%20Institute&am=5000&cu=INR`} 
-              alt="Payment QR" 
-              className="w-36 h-36"
-            />
-          </div>
+  <img 
+    src={myQRCode}  // Yaha aapne jo upar import kiya hai wo use hoga
+    alt="Payment QR" 
+    className="w-36 h-36 object-contain" // object-contain se photo stretch nahi hogi
+  />
+</div>
           
           <div className="text-center">
-            <span className="text-3xl font-black text-white">₹5,000</span>
-            <p className="text-xs text-slate-400 mt-1 font-medium tracking-wide">UPI ID: <span className="text-emerald-400">adijee@upi</span></p>
+            <span className="text-3xl font-black text-white">₹500/Class</span>
+            <p className="text-xs text-slate-400 mt-1 font-medium tracking-wide">UPI ID: <span className="text-emerald-400"> acpedwardlivingston-1@oksbi </span></p>
           </div>
 
           <label className="w-full">
