@@ -438,14 +438,11 @@ useEffect(() => {
               if (confirm(`Are you sure? This will remove ${s.name} from Firebase permanently.`)) {
                 try {
                   // Fixed: Changing /api/users to /api/students to match your server.ts
-                  const response = await fetch(`/api/students/${s.id}`, { 
-                    method: 'DELETE' 
-                  });
-                  
-                  if (response.ok) {
-                    // Update local state so it disappears instantly
-                    setStudents(students.filter(student => student.id !== s.id));
-                  } else {
+                  // Student Management delete fix
+const response = await fetch(`/api/students/${s.id}`, { method: 'DELETE' });
+if (response.ok) {
+    setStudents(prev => prev.filter(std => std.id !== s.id)); // Use 'prev' here too!
+} else {
                     alert("Failed to delete from server");
                   }
                 } catch (err) {
@@ -548,9 +545,23 @@ const renderAdminPayments = () => (
             </div>
             <button 
               onClick={async () => {
+                if(!p.id) return alert("Error: Payment ID missing!"); // Safety check
+                
                 if(confirm('Delete this record permanently?')) {
-                  await fetch(`/api/payments/${p.id}`, { method: 'DELETE' });
-                  setAllPayments(allPayments.filter(item => item.id !== p.id));
+                  try {
+                    const res = await fetch(`/api/payments/${p.id}`, { method: 'DELETE' });
+                    const data = await res.json();
+                    
+                    if(data.success) {
+                      // ✅ CORRECT WAY: Use functional update to ensure UI syncs
+                      setAllPayments(prevPayments => prevPayments.filter(item => item.id !== p.id));
+                    } else {
+                      alert("Server side error: " + (data.error || "Could not delete"));
+                    }
+                  } catch (err) {
+                    console.error("Delete failed:", err);
+                    alert("Network error: Server tak request nahi pahunchi");
+                  }
                 }
               }}
               className="text-red-500 p-2 hover:bg-red-500/10 rounded-xl transition-colors"
@@ -563,15 +574,10 @@ const renderAdminPayments = () => (
             <img 
               src={p.screenshot_url} 
               alt="Fee Screenshot" 
-              className="w-full h-40 object-cover rounded-xl border border-white/10"
+              className="w-full h-40 object-cover rounded-xl border border-white/10 cursor-pointer hover:opacity-80"
               referrerPolicy="no-referrer"
-            />
-            <button 
               onClick={() => window.open(p.screenshot_url, '_blank')}
-              className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-3 py-1 rounded-lg backdrop-blur-md"
-            >
-              View Full
-            </button>
+            />
           </div>
           
           <div className="flex justify-between items-center text-[10px]">
