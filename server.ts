@@ -136,17 +136,26 @@ app.post("/api/users", async (req, res) => {
     res.json({ answer: "AdiJEE AI logic initialized." });
   });
 
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (req, res) => res.sendFile(path.join(__dirname, "dist", "index.html")));
-  }
-
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 AdiJEE Studio Live: http://localhost:${PORT}`);
+// --- REPLACE THIS FINAL SECTION ---
+if (process.env.NODE_ENV !== "production") {
+  const vite = await createViteServer({ 
+    server: { middlewareMode: true }, 
+    appType: "spa" 
+  });
+  // Pehle API routes check honge, agar match nahi hue toh Vite handle karega
+  app.use(vite.middlewares); 
+} else {
+  app.use(express.static(path.join(__dirname, "dist")));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith('/api')) return next(); 
+    res.sendFile(path.join(__dirname, "dist", "index.html"));
   });
 }
+
+// ⚠️ YE LINE ZAROORI HAI LOCAL CHALANE KE LIYE
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 AdiJEE Studio Live: http://localhost:${PORT}`);
+});
+} // startServer bracket
 
 startServer();
