@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { QrCode, Upload, History, CheckCircle, Clock, ShieldCheck, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User } from '../types'; // Ensure you import your User type
-import myQRCode from './assets/my-qr.png';
+import myQRCode from '../assets/my-qr.png';
 
 interface PaymentSectionProps {
   user: User; // Changed from studentId: number to user: User
