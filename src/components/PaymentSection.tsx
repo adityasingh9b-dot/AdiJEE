@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { QrCode, Upload, History, CheckCircle, Clock, ShieldCheck, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User } from '../types'; // Ensure you import your User type
+import { User } from '../types'; 
 import myQRCode from '../assets/my-qr.jpeg';
 
 interface PaymentSectionProps {
-  user: User; // Changed from studentId: number to user: User
+  user: User;
 }
 
 export const PaymentSection: React.FC<PaymentSectionProps> = ({ user }) => {
@@ -18,16 +18,24 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ user }) => {
   const UPLOAD_PRESET = "adijee_payments"; 
 
   const fetchHistory = () => {
-    // Fetch specifically for this student
     fetch(`/api/payments/${user.id}`)
       .then(res => res.json())
       .then(setHistory)
       .catch(err => console.error("History fetch failed", err));
   };
 
+  // Run on mount to check if student already has an uploaded SS
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  // Also fetch when history is toggled
   useEffect(() => {
     if (showHistory) fetchHistory();
   }, [showHistory]);
+
+  // Logic: Disable upload if there is any record in history
+  const hasActivePayment = history.length > 0;
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -42,7 +50,6 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ user }) => {
     setStatusMsg(null);
 
     try {
-      // 1. Cloudinary Upload
       const formData = new FormData();
       formData.append('file', file);
       formData.append('upload_preset', UPLOAD_PRESET);
@@ -55,14 +62,13 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ user }) => {
       const cloudData = await cloudRes.json();
       if (!cloudRes.ok) throw new Error(cloudData.error?.message || 'Cloudinary upload failed');
 
-      // 2. Database Save (Adding Name and Phone for Admin visibility)
       const dbRes = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           student_id: user.id,
-          student_name: user.name, // Added this
-          student_phone: user.phone, // Added this
+          student_name: user.name,
+          student_phone: user.phone,
           amount: 5000,
           screenshot_url: cloudData.secure_url
         })
@@ -70,7 +76,7 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ user }) => {
 
       if (dbRes.ok) {
         setStatusMsg({ type: 'success', text: 'Proof submitted! Admin will verify soon.' });
-        fetchHistory();
+        fetchHistory(); // Refresh history to hide the button immediately
       }
     } catch (err: any) {
       setStatusMsg({ type: 'error', text: err.message || 'Submission failed.' });
@@ -101,32 +107,42 @@ export const PaymentSection: React.FC<PaymentSectionProps> = ({ user }) => {
 
         <div className="flex flex-col items-center gap-6 relative z-10">
           <div className="bg-white p-3 rounded-2xl shadow-inner shadow-black/20">
-  <img 
-    src={myQRCode}  // Yaha aapne jo upar import kiya hai wo use hoga
-    alt="Payment QR" 
-    className="w-36 h-36 object-contain" // object-contain se photo stretch nahi hogi
-  />
-</div>
+            <img 
+              src={myQRCode} 
+              alt="Payment QR" 
+              className="w-36 h-36 object-contain"
+            />
+          </div>
           
           <div className="text-center">
             <span className="text-3xl font-black text-white">₹500/Class</span>
-            <p className="text-xs text-slate-400 mt-1 font-medium tracking-wide">UPI ID: <span className="text-emerald-400"> acpedwardlivingston-1@oksbi </span></p>
+            <p className="text-xs text-slate-400 mt-1 font-medium tracking-wide">
+              UPI ID: <span className="text-emerald-400">acpedwardlivingston-1@oksbi</span>
+            </p>
           </div>
 
-          <label className="w-full">
-            <motion.div 
-              whileTap={{ scale: 0.98 }}
-              className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 cursor-pointer transition-all ${
-                uploading 
-                  ? 'bg-slate-800 text-slate-500' 
-                  : 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20 hover:bg-emerald-400'
-              }`}
-            >
-              {uploading ? <Clock className="animate-spin" size={20} /> : <Upload size={20} />}
-              {uploading ? 'Uploading...' : 'Upload Screenshot'}
-            </motion.div>
-            <input type="file" className="hidden" onChange={handleUpload} accept="image/*" disabled={uploading} />
-          </label>
+          {/* Conditional Rendering for Upload Button */}
+          {!hasActivePayment ? (
+            <label className="w-full">
+              <motion.div 
+                whileTap={{ scale: 0.98 }}
+                className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 cursor-pointer transition-all ${
+                  uploading 
+                    ? 'bg-slate-800 text-slate-500' 
+                    : 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20 hover:bg-emerald-400'
+                }`}
+              >
+                {uploading ? <Clock className="animate-spin" size={20} /> : <Upload size={20} />}
+                {uploading ? 'Uploading...' : 'Upload Screenshot'}
+              </motion.div>
+              <input type="file" className="hidden" onChange={handleUpload} accept="image/*" disabled={uploading} />
+            </label>
+          ) : (
+            <div className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-slate-400 font-bold flex items-center justify-center gap-3">
+              <CheckCircle className="text-emerald-500" size={20} />
+              Payment Under Review
+            </div>
+          )}
 
           {statusMsg && (
             <motion.div 
