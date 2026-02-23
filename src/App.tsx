@@ -37,6 +37,9 @@ export default function App() {
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [showStudentSelector, setShowStudentSelector] = useState(false);
   const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
+  
+  const bannerInputRef = React.useRef<HTMLInputElement>(null);
+const [isUploadingBanner, setIsUploadingBanner] = useState(false);
 
   // Login Form State
   const [phone, setPhone] = useState('');
@@ -410,55 +413,100 @@ if (Array.isArray(contentData)) {
         </div>
       </div>
 
-      {/* Banner Management (Admin Only) */}
-      {user.role === 'admin' && (
-        <div className="glass p-4 rounded-2xl">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-display font-bold flex items-center gap-2">
-              <Video size={18} className="text-brand-accent" /> Banner Management ({banners.length}/5)
-            </h3>
-            {banners.length < 5 && (
-              <button 
-                onClick={() => {
-                  const title = prompt('Banner Title:');
-                  const url = prompt('Image URL:');
-                  if (title && url) {
-                    fetch('/api/banners', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ title, image_url: url })
-                    }).then(() => fetch('/api/banners').then(res => res.json()).then(setBanners));
-                  }
-                }}
-                className="text-xs text-brand-accent"
-              >
-                + Add Banner
-              </button>
-            )}
-          </div>
-          <div className="space-y-2">
-            {banners.map(b => (
-              <div key={b.id} className="flex items-center justify-between p-2 bg-white/5 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <img src={b.image_url} className="w-12 h-8 object-cover rounded" referrerPolicy="no-referrer" />
-                  <span className="text-xs font-bold truncate max-w-[150px]">{b.title}</span>
-                </div>
-                <button 
-                  onClick={() => {
-                    if (confirm('Delete this banner?')) {
-                      fetch(`/api/banners/${b.id}`, { method: 'DELETE' })
-                        .then(() => fetch('/api/banners').then(res => res.json()).then(setBanners));
-                    }
-                  }}
-                  className="text-red-500 p-2"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+{/* Banner Management (Admin Only) */}
+{user.role === 'admin' && (
+  <div className="glass p-4 rounded-2xl">
+    {/* Hidden Input for Image Selection */}
+    <input 
+      type="file" 
+      ref={bannerInputRef} 
+      className="hidden" 
+      accept="image/*"
+      onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploadingBanner(true);
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+          // Uploading to ImgBB (Using your API Key)
+          const res = await fetch("https://api.imgbb.com/1/upload?key=6701f28b48f60c5549727448378280f2", {
+            method: "POST",
+            body: formData
+          });
+          const data = await res.json();
+          const imageUrl = data.data.url;
+
+          if (imageUrl) {
+            await fetch('/api/banners', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                title: `Banner ${banners.length + 1}`, 
+                image_url: imageUrl 
+              })
+            });
+            // Refresh list
+            const updated = await fetch('/api/banners').then(r => r.json());
+            setBanners(updated);
+          }
+        } catch (err) {
+          alert("Upload failed! Check connection.");
+        } finally {
+          setIsUploadingBanner(false);
+        }
+      }}
+    />
+
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="font-display font-bold flex items-center gap-2">
+        <Video size={18} className="text-brand-accent" /> Banner Management ({banners.length}/5)
+      </h3>
+      {banners.length < 5 && (
+        <button 
+          onClick={() => bannerInputRef.current?.click()}
+          disabled={isUploadingBanner}
+          className={`text-xs font-bold ${isUploadingBanner ? 'text-gray-500' : 'text-brand-accent'}`}
+        >
+          {isUploadingBanner ? 'Uploading...' : '+ Add Banner'}
+        </button>
       )}
+    </div>
+
+    <div className="space-y-2">
+      {banners.map(b => (
+        <div key={b.id} className="flex items-center justify-between p-2 bg-white/5 rounded-xl">
+          <div className="flex items-center gap-3">
+            <img 
+              src={b.image_url} 
+              className="w-12 h-8 object-cover rounded border border-white/10" 
+              referrerPolicy="no-referrer" 
+              alt={b.title}
+            />
+            <span className="text-xs font-bold truncate max-w-[150px]">{b.title}</span>
+          </div>
+          <button 
+            onClick={() => {
+              if (confirm('Delete this banner?')) {
+                fetch(`/api/banners/${b.id}`, { method: 'DELETE' })
+                  .then(() => fetch('/api/banners').then(res => res.json()).then(setBanners));
+              }
+            }}
+            className="text-red-500 p-2 hover:bg-red-500/10 rounded-lg transition-colors"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      
+      {banners.length === 0 && !isUploadingBanner && (
+        <p className="text-[10px] text-center text-gray-500 py-2">No banners uploaded yet.</p>
+      )}
+    </div>
+  </div>
+)}
 
 {/* User Management (Admin Only) */}
 {user.role === 'admin' && (
@@ -745,103 +793,117 @@ const renderAdminPayments = () => (
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 px-6 overflow-y-auto no-scrollbar">
+ {/* Main Content Area */}
+      <main className="flex-1 px-6 overflow-y-auto no-scrollbar relative">
+        {/* Floating Live Class Notification */}
         <AnimatePresence>
           {notification && (
             <motion.div 
-              initial={{ opacity: 0, y: -50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              className="fixed top-6 left-6 right-6 z-50 glass p-4 rounded-2xl neon-border flex items-center justify-between gap-4"
+              initial={{ opacity: 0, y: -50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -50, scale: 0.9 }}
+              className="fixed top-6 left-6 right-6 z-50 glass p-4 rounded-2xl neon-border flex items-center justify-between gap-4 shadow-2xl"
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-brand-secondary/20 rounded-xl flex items-center justify-center text-brand-secondary">
                   <Video size={20} />
                 </div>
                 <div>
-                  <p className="text-sm font-bold">Live Class Started!</p>
-                  <p className="text-[10px] text-slate-400">{notification.message}</p>
+                  <p className="text-sm font-bold text-white">Live Class Started!</p>
+                  <p className="text-[10px] text-slate-400 line-clamp-1">{notification.message}</p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <button 
                   onClick={() => {
                     setActiveMeetingId(notification.meeting_id);
                     setNotification(null);
                   }}
-                  className="bg-brand-accent text-brand-primary px-3 py-2 rounded-xl text-xs font-bold"
+                  className="bg-brand-accent text-brand-primary px-4 py-2 rounded-xl text-xs font-bold hover:opacity-90 transition-opacity"
                 >
                   Join
                 </button>
                 <button 
                   onClick={() => setNotification(null)}
-                  className="text-slate-400 p-2"
+                  className="text-slate-400 p-2 hover:text-white transition-colors"
                 >
-                  <X size={16} />
+                  <X size={18} />
                 </button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* Tab Content Switching */}
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="h-full"
           >
             {activeTab === 'dashboard' && renderDashboard()}
             {activeTab === 'content' && renderContent()}
             {activeTab === 'bot' && <DoubtBot />}
-            {activeTab === 'payments' && (user.role === 'admin' ? renderAdminPayments() : <PaymentSection user={user} /> )}
+            {activeTab === 'payments' && (
+              user.role === 'admin' 
+                ? renderAdminPayments() 
+                : <PaymentSection user={user} /> 
+            )}
           </motion.div>
         </AnimatePresence>
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-6 left-6 right-6 max-w-[calc(448px-3rem)] mx-auto glass rounded-2xl p-2 flex items-center justify-around neon-border">
-        <NavButton 
-          active={activeTab === 'dashboard'} 
-          onClick={() => setActiveTab('dashboard')} 
-          icon={<LayoutDashboard size={20} />} 
-          label="Home" 
-        />
-        <NavButton 
-          active={activeTab === 'content'} 
-          onClick={() => setActiveTab('content')} 
-          icon={<BookOpen size={20} />} 
-          label="Study" 
-        />
-        <NavButton 
-          active={activeTab === 'bot'} 
-          onClick={() => setActiveTab('bot')} 
-          icon={<MessageSquare size={20} />} 
-          label="Doubt" 
-        />
-        <NavButton 
-          active={activeTab === 'payments'} 
-          onClick={() => setActiveTab('payments')} 
-          icon={<CreditCard size={20} />} 
-          label="Fees" 
-        />
-      </nav>
+      {/* Bottom Navigation - Fixed and Centered */}
+      <div className="h-24 px-6 flex items-center justify-center">
+        <nav className="w-full glass rounded-2xl p-2 flex items-center justify-around neon-border shadow-lg">
+          <NavButton 
+            active={activeTab === 'dashboard'} 
+            onClick={() => setActiveTab('dashboard')} 
+            icon={<LayoutDashboard size={20} />} 
+            label="Home" 
+          />
+          <NavButton 
+            active={activeTab === 'content'} 
+            onClick={() => setActiveTab('content')} 
+            icon={<BookOpen size={20} />} 
+            label="Study" 
+          />
+          <NavButton 
+            active={activeTab === 'bot'} 
+            onClick={() => setActiveTab('bot')} 
+            icon={<MessageSquare size={20} />} 
+            label="Doubt" 
+          />
+          <NavButton 
+            active={activeTab === 'payments'} 
+            onClick={() => setActiveTab('payments')} 
+            icon={<CreditCard size={20} />} 
+            label={user.role === 'admin' ? "Verify" : "Fees"} 
+          />
+        </nav>
+      </div>
     </div>
   );
 }
 
+// NavButton Component for cleaner code
 function NavButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
   return (
     <button 
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${
-        active ? 'text-brand-accent bg-brand-accent/10' : 'text-slate-400 hover:text-white'
+      className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all duration-300 ${
+        active 
+          ? 'text-brand-accent bg-brand-accent/10 scale-105' 
+          : 'text-slate-400 hover:text-slate-200'
       }`}
     >
       {icon}
-      <span className="text-[10px] font-bold">{label}</span>
+      <span className={`text-[9px] font-bold uppercase tracking-wider ${active ? 'opacity-100' : 'opacity-70'}`}>
+        {label}
+      </span>
     </button>
   );
 }
