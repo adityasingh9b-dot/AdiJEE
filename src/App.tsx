@@ -24,8 +24,6 @@ import { DoubtBot } from './components/DoubtBot';
 import { PaymentSection } from './components/PaymentSection';
 import VideoCall from './components/VideoCall';
 
-const fileInputRef = React.useRef<HTMLInputElement>(null);
-
 export default function App() {
 
 const fileInputRef = React.useRef<HTMLInputElement>(null);
