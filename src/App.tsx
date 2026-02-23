@@ -429,13 +429,11 @@ if (Array.isArray(contentData)) {
         setIsUploadingBanner(true);
         const formData = new FormData();
         
-        // Cloudinary expects 'file' field
         formData.append('file', file);
         formData.append('upload_preset', 'adijee_payments'); 
         formData.append('cloud_name', 'do7jfmqqf');
 
         try {
-          // 1. Upload to Cloudinary
           const res = await fetch("https://api.cloudinary.com/v1_1/do7jfmqqf/image/upload", {
             method: "POST",
             body: formData
@@ -446,31 +444,28 @@ if (Array.isArray(contentData)) {
           if (data.secure_url) {
             const imageUrl = data.secure_url;
             
-            // 2. Save to your Backend
             const backendRes = await fetch('/api/banners', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
-                title: file.name.split('.')[0], // Original file name as title
+                title: `Banner_${Date.now()}`, // Generic title for DB
                 image_url: imageUrl 
               })
             });
 
             if (backendRes.ok) {
-              // 3. UI Refresh
               const updated = await fetch('/api/banners').then(r => r.json());
               setBanners(updated);
             }
           } else {
-            // Error handling for Cloudinary
-            alert("Cloudinary Error: " + (data.error?.message || "Check if your preset is 'Unsigned'"));
+            alert("Cloudinary Error: " + (data.error?.message || "Check preset settings"));
           }
         } catch (err) {
           console.error("Upload process error:", err);
-          alert("Network error! Dashboard settings check kar.");
+          alert("Network error!");
         } finally {
           setIsUploadingBanner(false);
-          if (bannerInputRef.current) bannerInputRef.current.value = ''; // Input reset
+          if (bannerInputRef.current) bannerInputRef.current.value = ''; 
         }
       }}
     />
@@ -492,15 +487,14 @@ if (Array.isArray(contentData)) {
 
     <div className="space-y-2">
       {banners.map(b => (
-        <div key={b.id} className="flex items-center justify-between p-2 bg-white/5 rounded-xl">
-          <div className="flex items-center gap-3">
+        <div key={b.id} className="flex items-center justify-between p-2 bg-white/5 rounded-xl overflow-hidden">
+          <div className="flex-1">
             <img 
               src={b.image_url} 
-              className="w-12 h-8 object-cover rounded border border-white/10" 
+              className="w-full h-16 object-cover rounded-lg border border-white/10" 
               referrerPolicy="no-referrer" 
-              alt={b.title}
+              alt="Banner Preview"
             />
-            <span className="text-xs font-bold truncate max-w-[150px]">{b.title}</span>
           </div>
           <button 
             onClick={() => {
@@ -509,9 +503,9 @@ if (Array.isArray(contentData)) {
                   .then(() => fetch('/api/banners').then(res => res.json()).then(setBanners));
               }
             }}
-            className="text-red-500 p-2 hover:bg-red-500/10 rounded-lg transition-colors"
+            className="ml-3 text-red-500 p-3 hover:bg-red-500/10 rounded-xl transition-colors shrink-0"
           >
-            <Trash2 size={14} />
+            <Trash2 size={16} />
           </button>
         </div>
       ))}
@@ -794,7 +788,7 @@ const renderAdminPayments = () => (
           )}
           <div>
             <h1 className="text-xl font-display font-black text-white">AdiJEE</h1>
-            <p className="text-[10px] text-brand-accent uppercase tracking-[0.2em]">Zenith Edition</p>
+            <p className="text-[10px] text-brand-accent uppercase tracking-[0.2em]">Owned by an #IITian!!!</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
