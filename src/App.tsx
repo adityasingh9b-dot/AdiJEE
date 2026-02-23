@@ -227,9 +227,8 @@ if (Array.isArray(contentData)) {
   const renderDashboard = () => (
     <div className="space-y-6 pb-24">
       <BannerCarousel />
-     
-     
-     {/* Live Class Status */}
+      
+      {/* Live Class Status */}
 {liveClass?.is_active ? (
   <div className="bg-brand-secondary/20 border border-brand-secondary p-4 rounded-2xl flex flex-col gap-4">
     <div className="flex items-center justify-between">
@@ -248,44 +247,95 @@ if (Array.isArray(contentData)) {
       </button>
     </div>
     
-   {user.role === 'admin' && (
-  <button 
-    onClick={async () => {
-      // Step 1: Confirmation check
-      if (!liveClass || !confirm('Are you sure you want to end the class? This will delete the session from Firebase.')) return;
-      
-      try {
-        // Step 2: Backend ke naye DELETE route ko call karna
-        const response = await fetch('/api/live-class', {
-          method: 'DELETE',
-        });
+    {user.role === 'admin' && (
+      <button 
+        onClick={async () => {
+          if (!liveClass || !confirm('Are you sure you want to end the class?')) return;
+          try {
+            // Naya DELETE route call kar rahe hain
+            const response = await fetch('/api/live-class', {
+              method: 'DELETE',
+            });
 
-        if (response.ok) {
-          // Step 3: Local state null kar do taaki Admin ka green box turant hat jaye
-          setLiveClass(null);
-          console.log("Class ended and deleted from Firebase successfully.");
-        } else {
-          const errorData = await response.json();
-          alert("Error: " + (errorData.error || "Could not end class"));
-        }
-      } catch (err) {
-        console.error("Failed to end class:", err);
-        alert("Network error! Please check your connection.");
-      }
-    }}
-    className="w-full bg-red-500/20 text-red-500 py-2 rounded-xl text-xs font-bold border border-red-500/30 hover:bg-red-500/30 transition-colors"
-  >
-    End Class for All
-  </button>
-)}
-   
+            if (response.ok) {
+              setLiveClass(null);
+              console.log("Class deleted successfully");
+            }
+          } catch (err) {
+            console.error("Failed to end class:", err);
+            alert("Failed to end class. Please try again.");
+          }
+        }}
+        className="w-full bg-red-500/20 text-red-500 py-2 rounded-xl text-xs font-bold border border-red-500/30 hover:bg-red-500/30 transition-colors"
+      >
+        End Class for All
+      </button>
+    )}
   </div>
-) : user.role === 'admin' && (
-  // ... rest of your student selector code
+) : (
+  /* Agar class active nahi hai aur user Admin hai toh ye dikhao */
+  user.role === 'admin' && (
+    <div className="space-y-3">
+      {!showStudentSelector ? (
+        <button 
+          onClick={() => setShowStudentSelector(true)}
+          className="w-full glass p-4 rounded-2xl flex items-center justify-center gap-2 text-brand-accent font-bold border-dashed border-brand-accent/50"
+        >
+          <Video size={20} /> Start Live Class
+        </button>
+      ) : (
+        <div className="glass p-4 rounded-2xl space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-bold">Select Students</h4>
+            <button onClick={() => setShowStudentSelector(false)} className="text-xs text-slate-400">Cancel</button>
+          </div>
+          <div className="max-h-40 overflow-y-auto space-y-2 no-scrollbar">
+            {students.map(s => (
+              <label key={s.id} className="flex items-center gap-3 p-2 bg-white/5 rounded-xl cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={selectedStudents.includes(s.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedStudents([...selectedStudents, s.id]);
+                    else setSelectedStudents(selectedStudents.filter(id => id !== s.id));
+                  }}
+                  className="accent-brand-accent"
+                />
+                <span className="text-sm">{s.name}</span>
+              </label>
+            ))}
+          </div>
+          <button 
+            onClick={async () => {
+              if (selectedStudents.length === 0) {
+                alert('Please select at least one student.');
+                return;
+              }
+              const mid = `AdiJEE_Live_${Math.random().toString(36).substring(7)}`;
+              await fetch('/api/live-class', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  meeting_id: mid, 
+                  is_active: 1,
+                  invited_students: selectedStudents
+                })
+              });
+              setActiveMeetingId(mid);
+              fetch('/api/live-class').then(res => res.json()).then(setLiveClass);
+              setShowStudentSelector(false);
+              setSelectedStudents([]);
+            }}
+            className="w-full bg-brand-accent text-brand-primary py-3 rounded-xl font-bold"
+          >
+            Start Class & Notify
+          </button>
+        </div>
+      )}
+    </div>
+  )
 )}
-     
-      
-     
+
 {/* Announcements Section Fixed */}
       <div className="glass p-4 rounded-2xl">
         <div className="flex items-center justify-between mb-4">
@@ -800,9 +850,10 @@ const renderAdminPayments = () => (
   </div>
 );
 
-  return (
-    <div className="max-w-md mx-auto min-h-screen flex flex-col">
-      {activeMeetingId && (
+ return (
+    <div className="max-w-md mx-auto min-h-screen flex flex-col bg-brand-primary">
+      {/* Video Call Overlay */}
+      {activeMeetingId && user && (
         <VideoCall 
           meetingId={activeMeetingId}
           userName={user.name}
@@ -811,35 +862,41 @@ const renderAdminPayments = () => (
           onLeave={() => setActiveMeetingId(null)}
         />
       )}
-      {/* Header */}
-      <header className="p-6 flex items-center justify-between">
+
+      {/* Header Section */}
+      <header className="p-6 flex items-center justify-between sticky top-0 z-40 bg-brand-primary/80 backdrop-blur-lg">
         <div className="flex items-center gap-3">
           {activeTab !== 'dashboard' && (
             <button 
               onClick={() => setActiveTab('dashboard')}
-              className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+              className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-slate-400 hover:text-white transition-all active:scale-90"
             >
               <ChevronLeft size={20} />
             </button>
           )}
           <div>
-            <h1 className="text-xl font-display font-black text-white">AdiJEE</h1>
-            <p className="text-[10px] text-brand-accent uppercase tracking-[0.2em]">Owned by an #IITian!!!</p>
+            <h1 className="text-xl font-display font-black text-white tracking-tight">AdiJEE</h1>
+            <p className="text-[10px] text-brand-accent uppercase font-bold tracking-[0.2em]">Owned by an #IITian!!!</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-xs font-bold">{user.name}</p>
-            <p className="text-[10px] text-slate-500 capitalize">{user.role}</p>
+
+        <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/5">
+          <div className="text-right hidden sm:block">
+            <p className="text-xs font-bold text-white leading-none">{user?.name || 'User'}</p>
+            <p className="text-[9px] text-slate-500 capitalize mt-1">{user?.role || 'Student'}</p>
           </div>
-          <button onClick={logout} className="text-slate-400 hover:text-white">
+          <button 
+            onClick={logout} 
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-400 transition-colors"
+            title="Logout"
+          >
             <LogOut size={18} />
           </button>
         </div>
       </header>
 
- {/* Main Content Area */}
-      <main className="flex-1 px-6 overflow-y-auto no-scrollbar relative">
+      {/* Main Content Area */}
+      <main className="flex-1 px-6 pb-32 overflow-y-auto no-scrollbar relative">
         {/* Floating Live Class Notification */}
         <AnimatePresence>
           {notification && (
@@ -847,15 +904,15 @@ const renderAdminPayments = () => (
               initial={{ opacity: 0, y: -50, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -50, scale: 0.9 }}
-              className="fixed top-6 left-6 right-6 z-50 glass p-4 rounded-2xl neon-border flex items-center justify-between gap-4 shadow-2xl"
+              className="fixed top-6 left-6 right-6 z-50 glass p-4 rounded-3xl neon-border flex items-center justify-between gap-4 shadow-2xl bg-brand-primary/90"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-brand-secondary/20 rounded-xl flex items-center justify-center text-brand-secondary">
+                <div className="w-10 h-10 bg-brand-secondary/20 rounded-2xl flex items-center justify-center text-brand-secondary">
                   <Video size={20} />
                 </div>
-                <div>
+                <div className="overflow-hidden">
                   <p className="text-sm font-bold text-white">Live Class Started!</p>
-                  <p className="text-[10px] text-slate-400 line-clamp-1">{notification.message}</p>
+                  <p className="text-[10px] text-slate-400 truncate">{notification.message}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -864,13 +921,13 @@ const renderAdminPayments = () => (
                     setActiveMeetingId(notification.meeting_id);
                     setNotification(null);
                   }}
-                  className="bg-brand-accent text-brand-primary px-4 py-2 rounded-xl text-xs font-bold hover:opacity-90 transition-opacity"
+                  className="bg-brand-accent text-brand-primary px-4 py-2 rounded-xl text-xs font-black hover:opacity-90 transition-opacity whitespace-nowrap"
                 >
                   Join
                 </button>
                 <button 
                   onClick={() => setNotification(null)}
-                  className="text-slate-400 p-2 hover:text-white transition-colors"
+                  className="text-slate-500 p-2 hover:text-white transition-colors"
                 >
                   <X size={18} />
                 </button>
@@ -883,16 +940,16 @@ const renderAdminPayments = () => (
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            transition={{ duration: 0.2 }}
             className="h-full"
           >
             {activeTab === 'dashboard' && renderDashboard()}
             {activeTab === 'content' && renderContent()}
             {activeTab === 'bot' && <DoubtBot />}
-            {activeTab === 'payments' && (
+            {activeTab === 'payments' && user && (
               user.role === 'admin' 
                 ? renderAdminPayments() 
                 : <PaymentSection user={user} /> 
@@ -901,9 +958,9 @@ const renderAdminPayments = () => (
         </AnimatePresence>
       </main>
 
-     {/* Bottom Navigation - Fixed and Floating */}
+      {/* Bottom Navigation */}
       <div className="fixed bottom-8 left-0 right-0 z-50 px-6 pointer-events-none">
-        <nav className="max-w-md mx-auto w-full glass rounded-3xl p-2 flex items-center justify-around neon-border shadow-[0_20px_50px_rgba(0,0,0,0.5)] pointer-events-auto">
+        <nav className="max-w-[340px] mx-auto w-full glass rounded-[2rem] p-2 flex items-center justify-between neon-border shadow-2xl pointer-events-auto bg-black/40 backdrop-blur-2xl">
           <NavButton 
             active={activeTab === 'dashboard'} 
             onClick={() => setActiveTab('dashboard')} 
@@ -926,7 +983,7 @@ const renderAdminPayments = () => (
             active={activeTab === 'payments'} 
             onClick={() => setActiveTab('payments')} 
             icon={<CreditCard size={20} />} 
-            label={user.role === 'admin' ? "Verify" : "Fees"} 
+            label={user?.role === 'admin' ? "Verify" : "Fees"} 
           />
         </nav>
       </div>
@@ -934,23 +991,38 @@ const renderAdminPayments = () => (
   );
 }
 
-// NavButton Component - Isko bhi thoda refine kiya hai
-function NavButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
+/**
+ * Reusable NavButton Component
+ */
+interface NavBtnProps {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}
+
+function NavButton({ active, onClick, icon, label }: NavBtnProps) {
   return (
     <button 
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 px-4 py-2 rounded-2xl transition-all duration-300 ${
+      className={`flex flex-col items-center justify-center gap-1 flex-1 py-2.5 rounded-2xl transition-all duration-300 ${
         active 
-          ? 'text-brand-accent bg-brand-accent/10 scale-110 shadow-[0_0_15px_rgba(16,185,129,0.2)]' 
-          : 'text-slate-500 hover:text-slate-300'
+          ? 'text-brand-accent bg-brand-accent/10 scale-105' 
+          : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
       }`}
     >
-      <div className={`${active ? 'animate-pulse-slow' : ''}`}>
+      <div className={`${active ? 'drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]' : ''}`}>
         {icon}
       </div>
-      <span className={`text-[8px] font-black uppercase tracking-widest ${active ? 'opacity-100' : 'opacity-60'}`}>
+      <span className={`text-[8px] font-black uppercase tracking-tighter ${active ? 'opacity-100' : 'opacity-50'}`}>
         {label}
       </span>
+      {active && (
+        <motion.div 
+          layoutId="nav-pill"
+          className="w-1 h-1 rounded-full bg-brand-accent mt-0.5"
+        />
+      )}
     </button>
   );
 }
