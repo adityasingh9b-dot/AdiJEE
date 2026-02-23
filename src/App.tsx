@@ -114,20 +114,48 @@ useEffect(() => {
     localStorage.removeItem('adijee_user');
   };
 
-  useEffect(() => {
+useEffect(() => {
     if (!user) return;
-    fetch('/api/banners').then(res => res.json()).then(setBanners);
-    fetch('/api/announcements').then(res => res.json()).then(setAnnouncements);
-    fetch(`/api/content/${user.id}`).then(res => res.json()).then(setContent);
-    fetch('/api/live-class').then(res => res.json()).then(setLiveClass);
-    
-    if (user.role === 'admin') {
-  fetch('/api/students').then(res => res.json()).then(setStudents);
-  // Humne backend mein /api/admin/all-payments banaya hai
-  fetch('/api/admin/all-payments').then(res => res.json()).then(setAllPayments);
-}
 
-  }, [user]);
+    const fetchData = async () => {
+      try {
+        // Parallel fetching for performance
+        const [bannersRes, announcementsRes, liveClassRes] = await Promise.all([
+          fetch('/api/banners'),
+          fetch('/api/announcements'),
+          fetch('/api/live-class')
+        ]);
+
+        setBanners(await bannersRes.json());
+        setAnnouncements(await announcementsRes.json());
+        setLiveClass(await liveClassRes.json());
+
+        // Role-based fetches
+        if (user.role === 'admin') {
+          const stdRes = await fetch('/api/students');
+          setStudents(await stdRes.json());
+          
+          // Only fetch all payments if on payment tab to save bandwidth
+          if (activeTab === 'payments') {
+            const payRes = await fetch('/api/admin/all-payments');
+            const payData = await payRes.json();
+            if (Array.isArray(payData)) setAllPayments(payData);
+          }
+        }
+
+        // Fetch user-specific content
+        const contentRes = await fetch(`/api/content/${user.id}`);
+        setContent(await contentRes.json());
+
+      } catch (err) {
+        console.error("Polling error:", err);
+      }
+    };
+
+    fetchData(); 
+    const interval = setInterval(fetchData, 10000); // 10s is safer than 5s for mobile data
+    return () => clearInterval(interval);
+  }, [user, activeTab]);
 
   if (!user) {
     return (
@@ -292,7 +320,8 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Announcements */}
+
+{/* Announcements Section Fixed */}
       <div className="glass p-4 rounded-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display font-bold flex items-center gap-2">
@@ -306,8 +335,9 @@ useEffect(() => {
                   fetch('/api/announcements', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: msg })
-                  }).then(() => fetch('/api/announcements').then(res => res.json()).then(setAnnouncements));
+                    body: JSON.stringify({ text: msg }) // Fixed: changed 'content' to 'text'
+                  });
+                  // Refresh auto-polling se apne aap ho jayega
                 }
               }}
               className="text-xs text-brand-accent"
@@ -317,14 +347,37 @@ useEffect(() => {
           )}
         </div>
         <div className="space-y-3">
-          {announcements.slice(0, 3).map(a => (
-            <div key={a.id} className="bg-white/5 p-3 rounded-xl border-l-2 border-brand-highlight">
-              <p className="text-sm">{a.content}</p>
-              <p className="text-[10px] text-slate-500 mt-1">{new Date(a.created_at).toLocaleDateString()}</p>
+          {announcements.slice(0, 5).map(a => (
+            <div key={a.id} className="relative group bg-white/5 p-3 rounded-xl border-l-2 border-brand-highlight">
+              <div className="pr-8">
+                <p className="text-sm">{a.text || a.content}</p>
+                <p className="text-[10px] text-slate-500 mt-1">{new Date(a.created_at).toLocaleDateString()}</p>
+              </div>
+
+              {/* Delete Button - Only for Admin */}
+              {user.role === 'admin' && (
+                <button
+                  onClick={async () => {
+                    if (confirm('Delete this announcement?')) {
+                      const res = await fetch(`/api/announcements/${a.id}`, { method: 'DELETE' });
+                      if (res.ok) {
+                        setAnnouncements(prev => prev.filter(item => item.id !== a.id));
+                      }
+                    }
+                  }}
+                  className="absolute top-3 right-3 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/10 rounded-lg"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
             </div>
           ))}
+          {announcements.length === 0 && (
+            <p className="text-center text-xs text-slate-500 py-2">No announcements yet.</p>
+          )}
         </div>
       </div>
+
 
       {/* Quick Access */}
       <div className="grid grid-cols-2 gap-4">
