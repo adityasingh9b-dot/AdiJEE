@@ -69,7 +69,7 @@ export const BannerCarousel: React.FC<{ isAdmin?: boolean }> = ({ isAdmin = fals
               className="flex items-center gap-2 mb-2"
             >
               <span className="bg-emerald-500 text-[#0A0E1A] text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-widest">
-                Zenith Update
+                🔴 TRENDING!
               </span>
             </motion.div>
             <h3 className="text-white font-display font-bold text-xl md:text-2xl leading-tight max-w-lg">
