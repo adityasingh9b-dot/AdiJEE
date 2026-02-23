@@ -448,7 +448,7 @@ if (Array.isArray(contentData)) {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
-                title: `Banner_${Date.now()}`, // Generic title for DB
+                title: ``,
                 image_url: imageUrl 
               })
             });
