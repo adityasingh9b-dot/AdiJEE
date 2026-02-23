@@ -422,42 +422,54 @@ if (Array.isArray(contentData)) {
       ref={bannerInputRef} 
       className="hidden" 
       accept="image/*"
-      onChange={async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
 
-        setIsUploadingBanner(true);
-        const formData = new FormData();
-        formData.append('image', file);
+// Is block ko replace karo apne existing onChange se
+onChange={async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-        try {
-          // Uploading to ImgBB (Using your API Key)
-          const res = await fetch("https://api.imgbb.com/1/upload?key=6701f28b48f60c5549727448378280f2", {
-            method: "POST",
-            body: formData
-          });
-          const data = await res.json();
-          const imageUrl = data.data.url;
+  setIsUploadingBanner(true);
+  const formData = new FormData();
+  formData.append('image', file);
 
-          if (imageUrl) {
-            await fetch('/api/banners', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                title: `Banner ${banners.length + 1}`, 
-                image_url: imageUrl 
-              })
-            });
-            // Refresh list
-            const updated = await fetch('/api/banners').then(r => r.json());
-            setBanners(updated);
-          }
-        } catch (err) {
-          alert("Upload failed! Check connection.");
-        } finally {
-          setIsUploadingBanner(false);
-        }
-      }}
+  try {
+    // 1. Upload to ImgBB
+    const res = await fetch("https://api.imgbb.com/1/upload?key=6701f28b48f60c5549727448378280f2", {
+      method: "POST",
+      body: formData // Note: Yahan headers mat dalna, browser auto-detect karega
+    });
+    
+    const data = await res.json();
+    
+    if (data.success) {
+      const imageUrl = data.data.url;
+      // 2. Save to your Backend
+      const backendRes = await fetch('/api/banners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          title: `Banner ${banners.length + 1}`, 
+          image_url: imageUrl 
+        })
+      });
+
+      if (backendRes.ok) {
+        // 3. UI Refresh
+        const updated = await fetch('/api/banners').then(r => r.json());
+        setBanners(updated);
+      }
+    } else {
+      alert("ImgBB Error: " + data.error.message);
+    }
+  } catch (err) {
+    console.error("Upload process error:", err);
+    alert("Network error! Check if your ImgBB key is active.");
+  } finally {
+    setIsUploadingBanner(false);
+    if (bannerInputRef.current) bannerInputRef.current.value = ''; // Input reset
+  }
+}}
+
     />
 
     <div className="flex items-center justify-between mb-4">
