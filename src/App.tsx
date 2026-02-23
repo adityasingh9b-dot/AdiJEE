@@ -865,9 +865,9 @@ const renderAdminPayments = () => (
         </AnimatePresence>
       </main>
 
-      {/* Bottom Navigation - Fixed and Centered */}
-      <div className="h-24 px-6 flex items-center justify-center">
-        <nav className="w-full glass rounded-2xl p-2 flex items-center justify-around neon-border shadow-lg">
+     {/* Bottom Navigation - Fixed and Floating */}
+      <div className="fixed bottom-8 left-0 right-0 z-50 px-6 pointer-events-none">
+        <nav className="max-w-md mx-auto w-full glass rounded-3xl p-2 flex items-center justify-around neon-border shadow-[0_20px_50px_rgba(0,0,0,0.5)] pointer-events-auto">
           <NavButton 
             active={activeTab === 'dashboard'} 
             onClick={() => setActiveTab('dashboard')} 
@@ -898,19 +898,21 @@ const renderAdminPayments = () => (
   );
 }
 
-// NavButton Component for cleaner code
+// NavButton Component - Isko bhi thoda refine kiya hai
 function NavButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
   return (
     <button 
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all duration-300 ${
+      className={`flex flex-col items-center gap-1 px-4 py-2 rounded-2xl transition-all duration-300 ${
         active 
-          ? 'text-brand-accent bg-brand-accent/10 scale-105' 
-          : 'text-slate-400 hover:text-slate-200'
+          ? 'text-brand-accent bg-brand-accent/10 scale-110 shadow-[0_0_15px_rgba(16,185,129,0.2)]' 
+          : 'text-slate-500 hover:text-slate-300'
       }`}
     >
-      {icon}
-      <span className={`text-[9px] font-bold uppercase tracking-wider ${active ? 'opacity-100' : 'opacity-70'}`}>
+      <div className={`${active ? 'animate-pulse-slow' : ''}`}>
+        {icon}
+      </div>
+      <span className={`text-[8px] font-black uppercase tracking-widest ${active ? 'opacity-100' : 'opacity-60'}`}>
         {label}
       </span>
     </button>
