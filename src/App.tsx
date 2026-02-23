@@ -143,9 +143,18 @@ useEffect(() => {
           }
         }
 
-        // Fetch user-specific content
-        const contentRes = await fetch(`/api/content/${user.id}`);
-        setContent(await contentRes.json());
+        
+        // ❌ Purana code:
+// const contentRes = await fetch(`/api/content/${user.id}`);
+
+// ✅ Naya Fixed code:
+const contentRes = await fetch(`/api/content?userId=${user.id}`);
+const contentData = await contentRes.json();
+if (Array.isArray(contentData)) {
+  setContent(contentData);
+} else {
+  setContent([]); // Fallback agar data na mile
+}
 
       } catch (err) {
         console.error("Polling error:", err);
@@ -525,22 +534,33 @@ if (response.ok) {
         {user.role === 'admin' && (
           <button 
             onClick={() => {
-              const title = prompt('Title:');
-              const type = prompt('Type (note/practice_sheet):') as any;
-              const sid = prompt('Student ID (leave blank for all):');
-              if (title && type) {
-                fetch('/api/content', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ 
-                    title, 
-                    type, 
-                    file_url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-                    student_id: sid ? parseInt(sid) : null
-                  })
-                }).then(() => fetch(`/api/content/${user.id}`).then(res => res.json()).then(setContent));
-              }
-            }}
+  const title = prompt('Title:');
+  const type = prompt('Type (note/practice_sheet):') as any;
+  const sid = prompt('Student ID (leave blank for all):');
+  
+  if (title && type) {
+    fetch('/api/content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        title, 
+        type, 
+        file_url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+        // FIX: parseInt hata diya taaki Firebase string IDs work karein
+        student_id: sid ? sid.trim() : null 
+      })
+    }).then(res => {
+      if (res.ok) {
+        // FIX: Query param use kiya refresh ke liye
+        fetch(`/api/content?userId=${user.id}`)
+          .then(r => r.json())
+          .then(setContent);
+      } else {
+        alert("Upload failed on server");
+      }
+    });
+  }
+}}
             className="bg-brand-accent text-brand-primary p-2 rounded-xl"
           >
             <Plus size={20} />

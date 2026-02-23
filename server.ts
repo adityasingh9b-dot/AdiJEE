@@ -220,6 +220,49 @@ app.post("/api/live-class", async (req, res) => {
   }
 });
 
+// Content (Study Materials) - Query Params Support
+app.get("/api/content", async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const snapshot = await rtdb.ref("content").once("value");
+    const all = formatFirebaseData(snapshot);
+    const filtered = all.filter(c => !c.student_id || String(c.student_id) === String(userId));
+    res.json(filtered);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/content", async (req, res) => {
+  try {
+    const ref = rtdb.ref("content").push();
+    await ref.set({ ...req.body, created_at: Date.now() });
+    res.json({ success: true, id: ref.key });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Announcements
+app.get("/api/announcements", async (req, res) => {
+  try {
+    const snapshot = await rtdb.ref("announcements").once("value");
+    res.json(formatFirebaseData(snapshot).reverse());
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/announcements", async (req, res) => {
+  try {
+    const ref = rtdb.ref("announcements").push();
+    await ref.set({ ...req.body, created_at: Date.now() });
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Live Class GET (Polling ke liye zaroori hai)
+app.get("/api/live-class", async (req, res) => {
+  try {
+    const snapshot = await rtdb.ref("live_sessions/current").once("value");
+    res.json(snapshot.val() || { is_active: false });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 // AI Bridge
 app.post("/api/ask-jee", (req, res) => {
   res.json({ answer: "AdiJEE AI logic initialized." });
