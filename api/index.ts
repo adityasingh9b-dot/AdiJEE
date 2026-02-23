@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import admin from "firebase-admin";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,33 +11,36 @@ const app = express();
 app.use(express.json());
 
 // --- 1. FIREBASE INITIALIZATION ---
-let serviceAccount;
-
 try {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    // Vercel Environment Variable handling
-    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    
-    // Fix: Private key newlines fix for Vercel environments
-    if (typeof serviceAccount.private_key === 'string') {
-      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
-    }
-  } else {
-    // Local fallback: dynamic import for ES Modules (Avoids 'require is not defined' error)
-    const { default: localKey } = await import(path.join(process.cwd(), "serviceAccountKey.json"), {
-      assert: { type: "json" }
-    });
-    serviceAccount = localKey;
-  }
-
   if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      databaseURL: "https://adijee-9b776-default-rtdb.firebaseio.com"
-    });
+    let serviceAccount;
+
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      // Vercel Environment Variable handling
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      if (typeof serviceAccount.private_key === 'string') {
+        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      }
+    } else {
+      // Local fallback: Using fs to avoid top-level await issues
+      const keyPath = path.join(process.cwd(), "serviceAccountKey.json");
+      if (fs.existsSync(keyPath)) {
+        serviceAccount = JSON.parse(fs.readFileSync(keyPath, "utf8"));
+      } else {
+        console.error("❌ serviceAccountKey.json not found locally!");
+      }
+    }
+
+    if (serviceAccount) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: "https://adijee-9b776-default-rtdb.firebaseio.com"
+      });
+      console.log("✅ Firebase Connected Successfully");
+    }
   }
 } catch (error) {
-  console.error("Firebase Init Error:", error);
+  console.error("❌ Firebase Init Error:", error);
 }
 
 const rtdb = admin.database();
@@ -49,127 +53,222 @@ const formatFirebaseData = (snapshot: any) => {
 
 // --- 2. ROUTES ---
 
+// Login Route
 app.post("/api/login", async (req, res) => {
-  const { phone, password } = req.body;
-  const snapshot = await rtdb.ref("users").orderByChild("phone").equalTo(phone).once("value");
-  const users = formatFirebaseData(snapshot);
-  const user = users.find(u => u.password === password);
-  res.json(user || null);
+  try {
+    const { phone, password } = req.body;
+    if (!phone || !password) return res.status(400).json({ error: "Missing phone or password" });
+
+    const snapshot = await rtdb.ref("users")
+      .orderByChild("phone")
+      .equalTo(String(phone))
+      .once("value");
+
+    const users = formatFirebaseData(snapshot);
+    const user = users.find((u: any) => u.password === password);
+    
+    if (user) {
+      res.json(user);
+    } else {
+      res.status(401).json({ error: "Invalid credentials" });
+    }
+  } catch (err: any) {
+    console.error("Login Error:", err.message);
+    res.status(500).json({ error: "Database error. Check Firebase Indexing." });
+  }
 });
 
+// Students List
 app.get("/api/students", async (req, res) => {
-  const snapshot = await rtdb.ref("users").orderByChild("role").equalTo("student").once("value");
-  res.json(formatFirebaseData(snapshot));
+  try {
+    const snapshot = await rtdb.ref("users").orderByChild("role").equalTo("student").once("value");
+    res.json(formatFirebaseData(snapshot));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
+// Create/Register User
+app.post("/api/users", async (req, res) => {
+  try {
+    const { name, phone, password, role } = req.body;
+    const newUserRef = rtdb.ref("users").push();
+    await newUserRef.set({ 
+      name, 
+      phone: String(phone), 
+      password, 
+      role: role || 'student', 
+      created_at: Date.now() 
+    });
+    res.json({ success: true, id: newUserRef.key });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to create user" });
+  }
+});
+
+// Delete Student
 app.delete("/api/students/:id", async (req, res) => {
   try {
     const { id } = req.params;
     await rtdb.ref(`users/${id}`).remove();
     res.json({ success: true, message: "Student removed" });
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ error: "Failed to delete student" });
   }
 });
 
-app.post("/api/users", async (req, res) => {
-  try {
-    const { name, phone, password, role } = req.body;
-    const newUserRef = rtdb.ref("users").push();
-    await newUserRef.set({ name, phone, password, role: role || 'student', created_at: Date.now() });
-    res.json({ success: true, id: newUserRef.key });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to create user" });
-  }
-});
-
+// Banners Routes
 app.post("/api/banners", async (req, res) => {
-  const { image_url, title } = req.body;
-  const newBannerRef = rtdb.ref("banners").push();
-  await newBannerRef.set({ image_url, title, created_at: Date.now() });
-  res.json({ success: true, id: newBannerRef.key });
+  try {
+    const { image_url, title } = req.body;
+    const newBannerRef = rtdb.ref("banners").push();
+    await newBannerRef.set({ image_url, title, created_at: Date.now() });
+    res.json({ success: true, id: newBannerRef.key });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/banners", async (req, res) => {
-  const snapshot = await rtdb.ref("banners").once("value");
-  res.json(formatFirebaseData(snapshot).reverse()); 
-});
-
-app.delete("/api/banners/:id", async (req, res) => {
-  await rtdb.ref(`banners/${req.params.id}`).remove();
-  res.json({ success: true });
-});
-
-// GET current live class status
-app.get("/api/live-class", async (req, res) => {
-  const snapshot = await rtdb.ref("live_sessions/current").once("value");
-  res.json(snapshot.val() || { is_active: false });
-});
-
-// GET announcements
-app.get("/api/announcements", async (req, res) => {
-  const snapshot = await rtdb.ref("announcements").once("value");
-  res.json(formatFirebaseData(snapshot).reverse());
-});
-
-// POST announcements
-app.post("/api/announcements", async (req, res) => {
-  const { content } = req.body;
-  const newRef = rtdb.ref("announcements").push();
-  await newRef.set({ content, created_at: Date.now() });
-  res.json({ success: true });
-});
-
-app.post("/api/payments", async (req, res) => {
-  const { student_id, amount, screenshot_url } = req.body;
-  const paymentRef = rtdb.ref("payments").push();
-  await paymentRef.set({ student_id, amount, screenshot_url, status: 'pending', created_at: Date.now() });
-  res.json({ success: true });
-});
-
-// Add this in api/index.ts
-app.get("/api/admin/all-payments", async (req, res) => {
   try {
-    const snapshot = await rtdb.ref("payments").once("value");
-    const data = formatFirebaseData(snapshot).reverse(); // Newest first
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch payments" });
+    const snapshot = await rtdb.ref("banners").once("value");
+    res.json(formatFirebaseData(snapshot).reverse()); 
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.get("/api/payments/:studentId", async (req, res) => {
-  const snapshot = await rtdb.ref("payments").once("value");
-  const allPayments = formatFirebaseData(snapshot);
-  const filtered = allPayments.filter(p => String(p.student_id) === String(req.params.studentId));
-  res.json(filtered);
+app.delete("/api/banners/:id", async (req, res) => {
+  try {
+    await rtdb.ref(`banners/${req.params.id}`).remove();
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post("/api/live-class", async (req, res) => {
-  const { meeting_id, is_active, invited_students } = req.body;
-  await rtdb.ref("live_sessions/current").set({
-    meeting_id, is_active, invited_students: invited_students || [], updatedAt: Date.now()
-  });
-  res.json({ success: true });
+// 1. Student Payment Submit Karega
+app.post("/api/payments", async (req, res) => {
+  try {
+    const { student_id, student_name, student_phone, amount, screenshot_url } = req.body;
+    
+    // Validation
+    if (!student_id || !screenshot_url) {
+      return res.status(400).json({ error: "Details ya screenshot missing hai" });
+    }
+
+    const paymentRef = rtdb.ref("payments").push();
+    await paymentRef.set({
+      student_id,
+      student_name: student_name || "Unknown",
+      student_phone: student_phone || "N/A",
+      amount: amount || "0",
+      screenshot_url,
+      status: 'pending',
+      created_at: Date.now()
+    });
+    res.json({ success: true, message: "Screenshot upload ho gaya!" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// --- Add this route to fix the Delete Error ---
+// 2. Sirf Admin ke liye: Saare payments dekhne ke liye
+app.get("/api/admin/all-payments", async (req, res) => {
+  try {
+    const snapshot = await rtdb.ref("payments").once("value");
+    // Reverse taaki naya payment sabse upar dikhe
+    res.json(formatFirebaseData(snapshot).reverse());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Admin Delete Karega (Screenshot remove karne ke liye)
 app.delete("/api/payments/:id", async (req, res) => {
   try {
     const { id } = req.params;
     await rtdb.ref(`payments/${id}`).remove();
-    res.json({ success: true, message: "Payment record deleted" });
-  } catch (error) {
-    console.error("Delete Payment Error:", error);
-    res.status(500).json({ error: "Failed to delete payment" });
+    res.json({ success: true, message: "Payment record deleted by Admin" });
+  } catch (err: any) {
+    res.status(500).json({ error: "Delete fail ho gaya" });
   }
 });
 
+// 4. Student Sirf Apne Payments Dekhega
+app.get("/api/payments/:studentId", async (req, res) => {
+  try {
+    const snapshot = await rtdb.ref("payments").once("value");
+    const allPayments = formatFirebaseData(snapshot);
+    const filtered = allPayments.filter(p => String(p.student_id) === String(req.params.studentId));
+    res.json(filtered);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Live Class Route
+app.post("/api/live-class", async (req, res) => {
+  try {
+    const { meeting_id, is_active, invited_students } = req.body;
+    await rtdb.ref("live_sessions/current").set({
+      meeting_id, is_active, invited_students: invited_students || [], updatedAt: Date.now()
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Content (Study Materials) - Query Params Support
+app.get("/api/content", async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const snapshot = await rtdb.ref("content").once("value");
+    const all = formatFirebaseData(snapshot);
+    const filtered = all.filter(c => !c.student_id || String(c.student_id) === String(userId));
+    res.json(filtered);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/content", async (req, res) => {
+  try {
+    const ref = rtdb.ref("content").push();
+    await ref.set({ ...req.body, created_at: Date.now() });
+    res.json({ success: true, id: ref.key });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Announcements
+app.get("/api/announcements", async (req, res) => {
+  try {
+    const snapshot = await rtdb.ref("announcements").once("value");
+    res.json(formatFirebaseData(snapshot).reverse());
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/announcements", async (req, res) => {
+  try {
+    const ref = rtdb.ref("announcements").push();
+    await ref.set({ ...req.body, created_at: Date.now() });
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Live Class GET (Polling ke liye zaroori hai)
+app.get("/api/live-class", async (req, res) => {
+  try {
+    const snapshot = await rtdb.ref("live_sessions/current").once("value");
+    res.json(snapshot.val() || { is_active: false });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// AI Bridge
 app.post("/api/ask-jee", (req, res) => {
   res.json({ answer: "AdiJEE AI logic initialized." });
 });
 
-// --- 3. VERCEL / LOCAL STARTUP ---
+// --- 3. EXPORT & STARTUP ---
 
 if (process.env.NODE_ENV !== "production") {
   const PORT = 3000;
@@ -178,5 +277,5 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-// CRITICAL: Vercel needs the exported app
+// CRITICAL FOR VERCEL
 export default app;
