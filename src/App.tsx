@@ -24,7 +24,12 @@ import { DoubtBot } from './components/DoubtBot';
 import { PaymentSection } from './components/PaymentSection';
 import VideoCall from './components/VideoCall';
 
+const fileInputRef = React.useRef<HTMLInputElement>(null);
+
 export default function App() {
+
+const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -37,7 +42,7 @@ export default function App() {
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [showStudentSelector, setShowStudentSelector] = useState(false);
   const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
-  
+  const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
   const bannerInputRef = React.useRef<HTMLInputElement>(null);
 const [isUploadingBanner, setIsUploadingBanner] = useState(false);
 
@@ -584,82 +589,165 @@ if (response.ok) {
     </div>
   );
 
-  const renderContent = () => (
-    <div className="space-y-6 pb-24">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-display font-bold">Study Materials</h2>
-        {user.role === 'admin' && (
+const renderContent = () => (
+  <div className="space-y-6 pb-24">
+    {/* Hidden Input for Cloudinary Upload */}
+    <input 
+      type="file" 
+      ref={fileInputRef} 
+      className="hidden" 
+      accept="image/*"
+      onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const title = prompt('Enter Chapter/Title:');
+        const subject = prompt('Enter Subject (Physics/Chemistry/Maths):', 'Physics');
+        const type = prompt('Type (note/practice_sheet):', 'note');
+
+        if (!title || !subject) {
+          alert("All fields are required!");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', 'adijee_payments'); 
+        formData.append('cloud_name', 'do7jfmqqf');
+
+        try {
+          const cloudRes = await fetch("https://api.cloudinary.com/v1_1/do7jfmqqf/image/upload", {
+            method: "POST",
+            body: formData
+          });
+          const cloudData = await cloudRes.json();
+
+          if (cloudData.secure_url) {
+            await fetch('/api/content', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                title, 
+                type, 
+                file_url: cloudData.secure_url,
+                subject, 
+                student_id: null 
+              })
+            });
+            
+            // Refresh content after upload
+            const res = await fetch(`/api/content?userId=${user?.id}`);
+            const data = await res.json();
+            if (Array.isArray(data)) setContent(data);
+          }
+        } catch (err) {
+          alert("Upload failed! Check your connection.");
+        } finally {
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+      }}
+    />
+
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        {selectedSubject && (
           <button 
-            onClick={() => {
-  const title = prompt('Title:');
-  const type = prompt('Type (note/practice_sheet):') as any;
-  const sid = prompt('Student ID (leave blank for all):');
-  
-  if (title && type) {
-    fetch('/api/content', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        title, 
-        type, 
-        file_url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-        // FIX: parseInt hata diya taaki Firebase string IDs work karein
-        student_id: sid ? sid.trim() : null 
-      })
-    }).then(res => {
-      if (res.ok) {
-        // FIX: Query param use kiya refresh ke liye
-        fetch(`/api/content?userId=${user.id}`)
-          .then(r => r.json())
-          .then(setContent);
-      } else {
-        alert("Upload failed on server");
-      }
-    });
-  }
-}}
-            className="bg-brand-accent text-brand-primary p-2 rounded-xl"
+            onClick={() => setSelectedSubject(null)} 
+            className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-colors"
           >
-            <Plus size={20} />
+            <ChevronLeft size={20} />
           </button>
         )}
+        <h2 className="text-2xl font-display font-bold text-white">
+          {selectedSubject ? selectedSubject : "Study Materials"}
+        </h2>
       </div>
+      
+      {user.role === 'admin' && (
+        <button 
+          onClick={() => fileInputRef.current?.click()}
+          className="bg-brand-accent text-brand-primary p-2 rounded-xl shadow-lg shadow-brand-accent/20 hover:scale-105 active:scale-95 transition-all"
+        >
+          <Plus size={20} />
+        </button>
+      )}
+    </div>
 
-      <div className="space-y-4">
+    {!selectedSubject ? (
+      /* --- FOLDER VIEW --- */
+      <div className="grid grid-cols-2 gap-4">
+        {['Physics', 'Chemistry', 'Maths'].map((sub) => (
+          <div 
+            key={sub}
+            onClick={() => setSelectedSubject(sub)}
+            className="glass p-6 rounded-[2rem] flex flex-col items-center gap-3 border border-white/5 hover:border-brand-accent/40 transition-all cursor-pointer group active:scale-95"
+          >
+            <div className="w-16 h-16 bg-brand-accent/10 rounded-2xl flex items-center justify-center text-brand-accent group-hover:bg-brand-accent group-hover:text-brand-primary transition-all duration-500 shadow-inner">
+              <BookOpen size={32} />
+            </div>
+            <span className="font-bold text-sm tracking-tight">{sub}</span>
+            <div className="px-3 py-1 bg-white/5 rounded-full">
+               <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest">
+                {content.filter(c => c.subject === sub).length} Items
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      /* --- FILE VIEW --- */
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {['note', 'practice_sheet'].map(type => (
-          <div key={type} className="space-y-3">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
+          <div key={type} className="space-y-4">
+            <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em] ml-2 flex items-center gap-2">
+              <span className="w-1 h-1 bg-brand-accent rounded-full" />
               {type === 'note' ? 'Chapter Notes' : 'Practice Sheets'}
             </h3>
             <div className="grid gap-3">
-              {content.filter(c => c.type === type).map(c => (
-                <div key={c.id} className="glass p-4 rounded-2xl flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-slate-400">
-                      <FileText size={20} />
+              {content
+                .filter(c => c.subject === selectedSubject && c.type === type)
+                .map(c => (
+                <div key={c.id} className="glass p-4 rounded-3xl flex items-center justify-between border border-white/5 group hover:bg-white/10 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-black/20 rounded-2xl overflow-hidden border border-white/10 shadow-inner relative">
+                      <img 
+                        src={c.file_url} 
+                        className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" 
+                        alt="Preview" 
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                         <FileText size={16} className="text-white/20 group-hover:opacity-0 transition-opacity" />
+                      </div>
                     </div>
                     <div>
-                      <p className="text-sm font-bold">{c.title}</p>
-                      <p className="text-[10px] text-slate-500">{new Date(c.created_at).toLocaleDateString()}</p>
+                      <p className="text-sm font-bold text-white leading-tight mb-1 group-hover:text-brand-accent transition-colors">
+                        {c.title}
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-medium">
+                        Added {new Date(c.created_at).toLocaleDateString('en-IN')}
+                      </p>
                     </div>
                   </div>
                   <button 
                     onClick={() => window.open(c.file_url, '_blank')}
-                    className="text-brand-accent text-xs font-bold"
+                    className="h-10 px-5 bg-brand-accent/10 text-brand-accent rounded-2xl text-xs font-bold hover:bg-brand-accent hover:text-brand-primary transition-all active:scale-90"
                   >
                     View
                   </button>
                 </div>
               ))}
-              {content.filter(c => c.type === type).length === 0 && (
-                <p className="text-xs text-slate-500 italic">No items available.</p>
+              {content.filter(c => c.subject === selectedSubject && c.type === type).length === 0 && (
+                <div className="py-8 text-center glass rounded-3xl border-dashed border-white/5">
+                  <p className="text-xs text-slate-600 italic">No {type.replace('_', ' ')}s yet.</p>
+                </div>
               )}
             </div>
           </div>
         ))}
       </div>
-    </div>
-  );
+    )}
+  </div>
+);
 
 const renderAdminPayments = () => (
   <div className="space-y-6 pb-24">
