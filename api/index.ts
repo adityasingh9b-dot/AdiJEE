@@ -263,6 +263,17 @@ app.get("/api/live-class", async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// DELETE announcement
+app.delete("/api/announcements/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await rtdb.ref(`announcements/${id}`).remove();
+    res.json({ success: true, message: "Announcement deleted" });
+  } catch (err: any) {
+    res.status(500).json({ error: "Delete fail ho gaya: " + err.message });
+  }
+});
+
 // AI Bridge
 app.post("/api/ask-jee", (req, res) => {
   res.json({ answer: "AdiJEE AI logic initialized." });
