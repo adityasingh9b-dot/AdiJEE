@@ -227,115 +227,65 @@ if (Array.isArray(contentData)) {
   const renderDashboard = () => (
     <div className="space-y-6 pb-24">
       <BannerCarousel />
+     
+     
+     {/* Live Class Status */}
+{liveClass?.is_active ? (
+  <div className="bg-brand-secondary/20 border border-brand-secondary p-4 rounded-2xl flex flex-col gap-4">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+        <div>
+          <p className="text-sm font-bold text-white">Live Class Active</p>
+          <p className="text-xs text-slate-400">Join the session now</p>
+        </div>
+      </div>
+      <button 
+        onClick={() => setActiveMeetingId(liveClass.meeting_id)}
+        className="bg-brand-secondary text-white px-4 py-2 rounded-xl text-sm font-bold hover:opacity-90"
+      >
+        Join Now
+      </button>
+    </div>
+    
+   {user.role === 'admin' && (
+  <button 
+    onClick={async () => {
+      // Step 1: Confirmation check
+      if (!liveClass || !confirm('Are you sure you want to end the class? This will delete the session from Firebase.')) return;
       
-      {/* Live Class Status */}
-      {liveClass?.is_active ? (
-        <div className="bg-brand-secondary/20 border border-brand-secondary p-4 rounded-2xl flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-              <div>
-                <p className="text-sm font-bold text-white">Live Class Active</p>
-                <p className="text-xs text-slate-400">Join the session now</p>
-              </div>
-            </div>
-            <button 
-              onClick={() => setActiveMeetingId(liveClass.meeting_id)}
-              className="bg-brand-secondary text-white px-4 py-2 rounded-xl text-sm font-bold hover:opacity-90"
-            >
-              Join Now
-            </button>
-          </div>
-          
-          {user.role === 'admin' && (
-            <button 
-              onClick={async () => {
-                if (!liveClass || !confirm('Are you sure you want to end the class?')) return;
-                try {
-                  await fetch('/api/live-class', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                      meeting_id: liveClass.meeting_id, 
-                      is_active: 0 
-                    })
-                  });
-                  const res = await fetch('/api/live-class');
-                  const data = await res.json();
-                  setLiveClass(data);
-                } catch (err) {
-                  console.error("Failed to end class:", err);
-                  alert("Failed to end class. Please try again.");
-                }
-              }}
-              className="w-full bg-red-500/20 text-red-500 py-2 rounded-xl text-xs font-bold border border-red-500/30 hover:bg-red-500/30 transition-colors"
-            >
-              End Class for All
-            </button>
-          )}
-        </div>
-      ) : user.role === 'admin' && (
-        <div className="space-y-3">
-          {!showStudentSelector ? (
-            <button 
-              onClick={() => setShowStudentSelector(true)}
-              className="w-full glass p-4 rounded-2xl flex items-center justify-center gap-2 text-brand-accent font-bold border-dashed border-brand-accent/50"
-            >
-              <Video size={20} /> Start Live Class
-            </button>
-          ) : (
-            <div className="glass p-4 rounded-2xl space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold">Select Students</h4>
-                <button onClick={() => setShowStudentSelector(false)} className="text-xs text-slate-400">Cancel</button>
-              </div>
-              <div className="max-h-40 overflow-y-auto space-y-2 no-scrollbar">
-                {students.map(s => (
-                  <label key={s.id} className="flex items-center gap-3 p-2 bg-white/5 rounded-xl cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={selectedStudents.includes(s.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedStudents([...selectedStudents, s.id]);
-                        else setSelectedStudents(selectedStudents.filter(id => id !== s.id));
-                      }}
-                      className="accent-brand-accent"
-                    />
-                    <span className="text-sm">{s.name}</span>
-                  </label>
-                ))}
-              </div>
-              <button 
-                onClick={async () => {
-                  if (selectedStudents.length === 0) {
-                    alert('Please select at least one student.');
-                    return;
-                  }
-                  const mid = `AdiJEE_Live_${Math.random().toString(36).substring(7)}`;
-                  await fetch('/api/live-class', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                      meeting_id: mid, 
-                      is_active: 1,
-                      invited_students: selectedStudents
-                    })
-                  });
-                  setActiveMeetingId(mid);
-                  fetch('/api/live-class').then(res => res.json()).then(setLiveClass);
-                  setShowStudentSelector(false);
-                  setSelectedStudents([]);
-                }}
-                className="w-full bg-brand-accent text-brand-primary py-3 rounded-xl font-bold"
-              >
-                Start Class & Notify
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      try {
+        // Step 2: Backend ke naye DELETE route ko call karna
+        const response = await fetch('/api/live-class', {
+          method: 'DELETE',
+        });
 
-
+        if (response.ok) {
+          // Step 3: Local state null kar do taaki Admin ka green box turant hat jaye
+          setLiveClass(null);
+          console.log("Class ended and deleted from Firebase successfully.");
+        } else {
+          const errorData = await response.json();
+          alert("Error: " + (errorData.error || "Could not end class"));
+        }
+      } catch (err) {
+        console.error("Failed to end class:", err);
+        alert("Network error! Please check your connection.");
+      }
+    }}
+    className="w-full bg-red-500/20 text-red-500 py-2 rounded-xl text-xs font-bold border border-red-500/30 hover:bg-red-500/30 transition-colors"
+  >
+    End Class for All
+  </button>
+)}
+   
+  </div>
+) : user.role === 'admin' && (
+  // ... rest of your student selector code
+)}
+     
+      
+     
 {/* Announcements Section Fixed */}
       <div className="glass p-4 rounded-2xl">
         <div className="flex items-center justify-between mb-4">

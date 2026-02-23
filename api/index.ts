@@ -207,7 +207,9 @@ app.get("/api/payments/:studentId", async (req, res) => {
   }
 });
 
-// Live Class Route
+// --- Live Class Routes ---
+
+// 1. Create/Update Class
 app.post("/api/live-class", async (req, res) => {
   try {
     const { meeting_id, is_active, invited_students } = req.body;
@@ -218,6 +220,24 @@ app.post("/api/live-class", async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// 2. DELETE Class (Ye naya part hai - Full Removal from Firebase)
+app.delete("/api/live-class", async (req, res) => {
+  try {
+    await rtdb.ref("live_sessions/current").remove();
+    res.json({ success: true, message: "Class entry deleted from Firebase" });
+  } catch (err: any) {
+    res.status(500).json({ error: "Delete fail: " + err.message });
+  }
+});
+
+// 3. Get Class Status
+app.get("/api/live-class", async (req, res) => {
+  try {
+    const snapshot = await rtdb.ref("live_sessions/current").once("value");
+    res.json(snapshot.val() || { is_active: false });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 // Content (Study Materials) - Query Params Support
@@ -255,13 +275,6 @@ app.post("/api/announcements", async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// Live Class GET (Polling ke liye zaroori hai)
-app.get("/api/live-class", async (req, res) => {
-  try {
-    const snapshot = await rtdb.ref("live_sessions/current").once("value");
-    res.json(snapshot.val() || { is_active: false });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
-});
 
 // DELETE announcement
 app.delete("/api/announcements/:id", async (req, res) => {
