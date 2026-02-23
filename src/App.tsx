@@ -533,59 +533,96 @@ if (response.ok) {
 
 const renderAdminPayments = () => (
   <div className="space-y-6 pb-24">
-    <h2 className="text-2xl font-display font-bold text-white">Fee Verifications</h2>
+    <div className="flex items-center justify-between">
+      <h2 className="text-2xl font-display font-bold text-white">Fee Verifications</h2>
+      <span className="text-[10px] bg-brand-accent/20 text-brand-accent px-2 py-1 rounded-full font-bold">
+        {allPayments.length} Total
+      </span>
+    </div>
+
     <div className="space-y-4">
-      {allPayments.length === 0 && <p className="text-slate-500 text-center py-10">No screenshots yet.</p>}
-      {allPayments.map(p => (
-        <div key={p.id} className="glass p-4 rounded-2xl border border-white/5 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-bold text-white">{p.student_name || 'N/A'}</p>
-              <p className="text-[10px] text-brand-accent">{p.student_phone || 'No Phone'}</p>
-            </div>
-            <button 
-              onClick={async () => {
-                if(!p.id) return alert("Error: Payment ID missing!"); // Safety check
-                
-                if(confirm('Delete this record permanently?')) {
-                  try {
-                    const res = await fetch(`/api/payments/${p.id}`, { method: 'DELETE' });
-                    const data = await res.json();
-                    
-                    if(data.success) {
-                      // ✅ CORRECT WAY: Use functional update to ensure UI syncs
-                      setAllPayments(prevPayments => prevPayments.filter(item => item.id !== p.id));
-                    } else {
-                      alert("Server side error: " + (data.error || "Could not delete"));
-                    }
-                  } catch (err) {
-                    console.error("Delete failed:", err);
-                    alert("Network error: Server tak request nahi pahunchi");
-                  }
-                }
-              }}
-              className="text-red-500 p-2 hover:bg-red-500/10 rounded-xl transition-colors"
-            >
-              <Trash2 size={18} />
-            </button>
-          </div>
-          
-          <div className="relative group">
-            <img 
-              src={p.screenshot_url} 
-              alt="Fee Screenshot" 
-              className="w-full h-40 object-cover rounded-xl border border-white/10 cursor-pointer hover:opacity-80"
-              referrerPolicy="no-referrer"
-              onClick={() => window.open(p.screenshot_url, '_blank')}
-            />
-          </div>
-          
-          <div className="flex justify-between items-center text-[10px]">
-             <span className="text-slate-400">Date: {new Date(p.created_at).toLocaleDateString()}</span>
-             <span className="text-brand-accent font-bold">₹{p.amount || '0'}</span>
-          </div>
+      {allPayments.length === 0 ? (
+        <div className="glass p-10 rounded-3xl border border-white/5 text-center">
+          <p className="text-slate-500">No screenshots found in database.</p>
         </div>
-      ))}
+      ) : (
+        allPayments.map(p => (
+          <div key={p.id} className="glass p-4 rounded-3xl border border-white/10 space-y-4 bg-gradient-to-b from-white/5 to-transparent">
+            
+            {/* Header: Student Info & Delete */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-accent rounded-2xl flex items-center justify-center text-brand-primary font-black shadow-lg shadow-brand-accent/20">
+                  {p.student_name ? p.student_name[0].toUpperCase() : '?'}
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white tracking-tight leading-none mb-1">
+                    {p.student_name || 'NA Name'}
+                  </h4>
+                  <p className="text-[11px] text-brand-accent font-medium">
+                    {p.student_phone || 'NA Phone'}
+                  </p>
+                </div>
+              </div>
+
+              <button 
+                onClick={async () => {
+                  if(!p.id) return alert("Error: Payment ID missing!");
+                  if(confirm(`Delete record for ${p.student_name}?`)) {
+                    try {
+                      const res = await fetch(`/api/payments/${p.id}`, { method: 'DELETE' });
+                      const data = await res.json();
+                      if(data.success) {
+                        setAllPayments(prev => prev.filter(item => item.id !== p.id));
+                      } else {
+                        alert("Error: " + (data.error || "Could not delete"));
+                      }
+                    } catch (err) {
+                      alert("Network error: Server not responding");
+                    }
+                  }
+                }}
+                className="w-9 h-9 flex items-center justify-center text-red-400 bg-red-500/10 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+
+            {/* Screenshot Preview */}
+            <div 
+              className="relative group cursor-pointer overflow-hidden rounded-2xl border border-white/10"
+              onClick={() => window.open(p.screenshot_url, '_blank')}
+            >
+              <img 
+                src={p.screenshot_url} 
+                alt="Payment" 
+                className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span className="text-[10px] font-bold text-white bg-white/20 backdrop-blur-md px-3 py-2 rounded-full border border-white/20">
+                  Tap to Full View
+                </span>
+              </div>
+            </div>
+
+            {/* Footer: Date & Amount */}
+            <div className="flex items-center justify-between bg-white/5 p-3 rounded-2xl border border-white/5">
+              <div className="flex flex-col">
+                <span className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Upload Date</span>
+                <span className="text-xs text-white font-medium">
+                  {new Date(p.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] text-slate-500 uppercase font-bold tracking-wider block">Fees Paid</span>
+                <span className="text-lg font-black text-emerald-400">₹{p.amount || '500'}</span>
+              </div>
+            </div>
+
+          </div>
+        ))
+      )}
     </div>
   </div>
 );
