@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Banner, Announcement, ContentItem, Payment, LiveClass } from './types';
+
 import { 
   LayoutDashboard, 
   BookOpen, 
@@ -16,6 +17,8 @@ import {
   Trash2,
   Phone,
   Lock,
+  Loader2,
+  Upload,
   ChevronLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -27,6 +30,14 @@ import VideoCall from './components/VideoCall';
 export default function App() {
 
 const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+const [showUploadModal, setShowUploadModal] = useState(false);
+const [isUploading, setIsUploading] = useState(false);
+const [uploadForm, setUploadForm] = useState({ 
+  title: '', 
+  subject: 'Physics', 
+  type: 'note' 
+});
 
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -41,6 +52,7 @@ const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [showStudentSelector, setShowStudentSelector] = useState(false);
   const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
+  const [viewingChapter, setViewingChapter] = useState<string | null>(null);
   const bannerInputRef = React.useRef<HTMLInputElement>(null);
 const [isUploadingBanner, setIsUploadingBanner] = useState(false);
 
@@ -587,165 +599,257 @@ if (response.ok) {
     </div>
   );
 
-const renderContent = () => (
-  <div className="space-y-6 pb-24">
-    {/* Hidden Input for Cloudinary Upload */}
-    <input 
-      type="file" 
-      ref={fileInputRef} 
-      className="hidden" 
-      accept="image/*"
-      onChange={async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+const renderContent = () => {
+  // Filter images for the vertical viewer
+  const chapterImages = viewingChapter 
+    ? content.filter(c => c.title.startsWith(viewingChapter.split(' (Page')[0]))
+             .sort((a, b) => a.title.localeCompare(b.title, undefined, {numeric: true, sensitivity: 'base'}))
+    : [];
 
-        const title = prompt('Enter Chapter/Title:');
-        const subject = prompt('Enter Subject (Physics/Chemistry/Maths):', 'Physics');
-        const type = prompt('Type (note/practice_sheet):', 'note');
+  return (
+    <div className="space-y-6 pb-24">
+      {/* --- VERTICAL IMAGE VIEWER (PDF STYLE) --- */}
+      {viewingChapter && (
+        <div className="fixed inset-0 z-[110] bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-300">
+          <header className="p-6 flex items-center justify-between border-b border-white/10 bg-black/50">
+            <div>
+              <h3 className="text-white font-bold">{viewingChapter.split(' (Page')[0]}</h3>
+              <p className="text-[10px] text-slate-500 uppercase">{chapterImages.length} Pages</p>
+            </div>
+            <button 
+              onClick={() => setViewingChapter(null)}
+              className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white"
+            >
+              <X size={20} />
+            </button>
+          </header>
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+            {chapterImages.map((img, index) => (
+              <div key={img.id} className="relative">
+                <div className="absolute top-2 left-2 bg-black/50 backdrop-blur-md px-2 py-1 rounded text-[10px] text-white/50 z-10">
+                  Page {index + 1}
+                </div>
+                <img 
+                  src={img.file_url} 
+                  className="w-full rounded-lg shadow-2xl border border-white/5"
+                  alt={`Page ${index + 1}`}
+                  loading="lazy"
+                />
+              </div>
+            ))}
+            <div className="py-20 text-center">
+              <p className="text-slate-600 text-xs italic">End of Chapter</p>
+            </div>
+          </div>
+        </div>
+      )}
 
-        if (!title || !subject) {
-          alert("All fields are required!");
-          return;
-        }
+      {/* --- UPLOAD MODAL OVERLAY (Same as before) --- */}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-brand-primary/90 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="glass w-full max-w-sm p-6 rounded-[2.5rem] border border-white/10 space-y-5 shadow-2xl">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold text-white">Upload Material</h3>
+              <button onClick={() => setShowUploadModal(false)} className="text-slate-400"><X size={20}/></button>
+            </div>
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', 'adijee_payments'); 
-        formData.append('cloud_name', 'do7jfmqqf');
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] text-slate-500 uppercase font-bold ml-1">Title / Chapter</label>
+                <input 
+                  type="text" placeholder="e.g. Rotation"
+                  className="w-full bg-white/5 border border-white/10 p-3 rounded-2xl text-white outline-none focus:border-brand-accent transition-colors"
+                  onChange={(e) => setUploadForm({...uploadForm, title: e.target.value})}
+                />
+              </div>
 
-        try {
-          const cloudRes = await fetch("https://api.cloudinary.com/v1_1/do7jfmqqf/image/upload", {
-            method: "POST",
-            body: formData
-          });
-          const cloudData = await cloudRes.json();
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase font-bold ml-1">Subject</label>
+                  <select 
+                    className="w-full bg-white/5 border border-white/10 p-3 rounded-2xl text-white outline-none appearance-none"
+                    onChange={(e) => setUploadForm({...uploadForm, subject: e.target.value})}
+                    value={uploadForm.subject}
+                  >
+                    <option value="Physics">Physics</option>
+                    <option value="Chemistry">Chemistry</option>
+                    <option value="Maths">Maths</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase font-bold ml-1">Category</label>
+                  <select 
+                    className="w-full bg-white/5 border border-white/10 p-3 rounded-2xl text-white outline-none appearance-none"
+                    onChange={(e) => setUploadForm({...uploadForm, type: e.target.value})}
+                    value={uploadForm.type}
+                  >
+                    <option value="note">Notes</option>
+                    <option value="practice_sheet">Sheet</option>
+                  </select>
+                </div>
+              </div>
 
-          if (cloudData.secure_url) {
-            await fetch('/api/content', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                title, 
-                type, 
-                file_url: cloudData.secure_url,
-                subject, 
-                student_id: null 
-              })
-            });
-            
-            // Refresh content after upload
-            const res = await fetch(`/api/content?userId=${user?.id}`);
-            const data = await res.json();
-            if (Array.isArray(data)) setContent(data);
-          }
-        } catch (err) {
-          alert("Upload failed! Check your connection.");
-        } finally {
-          if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-      }}
-    />
+              <div className="relative border-2 border-dashed border-white/10 rounded-3xl p-8 text-center hover:border-brand-accent/50 transition-all group">
+                <input 
+                  type="file" multiple accept="image/*"
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  disabled={isUploading}
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length === 0) return;
+                    if (!uploadForm.title) return alert("Please enter a title first!");
 
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        {selectedSubject && (
+                    setIsUploading(true);
+                    try {
+                      for (const file of files) {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('upload_preset', 'adijee_payments'); 
+                        
+                        const cloudRes = await fetch("https://api.cloudinary.com/v1_1/do7jfmqqf/image/upload", {
+                          method: "POST",
+                          body: formData
+                        });
+                        const cloudData = await cloudRes.json();
+
+                        if (cloudData.secure_url) {
+                          await fetch('/api/content', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                              title: files.length > 1 ? `${uploadForm.title} (Page ${String(files.indexOf(file) + 1).padStart(2, '0')})` : uploadForm.title,
+                              type: uploadForm.type, 
+                              file_url: cloudData.secure_url,
+                              subject: uploadForm.subject, 
+                              student_id: null 
+                            })
+                          });
+                        }
+                      }
+                      alert(`${files.length} Files Uploaded!`);
+                      setShowUploadModal(false);
+                      const res = await fetch(`/api/content?userId=${user?.id}`);
+                      const data = await res.json();
+                      if (Array.isArray(data)) setContent(data);
+                    } catch (err) {
+                      alert("Upload failed!");
+                    } finally {
+                      setIsUploading(false);
+                    }
+                  }}
+                />
+                <div className="flex flex-col items-center gap-2">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isUploading ? 'bg-brand-accent animate-spin' : 'bg-brand-accent/10 text-brand-accent'}`}>
+                    {isUploading ? <Loader2 size={24} /> : <Upload size={24} />}
+                  </div>
+                  <p className="text-sm font-bold text-white">{isUploading ? 'Uploading...' : 'Tap to Select Images'}</p>
+                  <p className="text-[10px] text-slate-500 font-bold">Multiple Selection Supported</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- HEADER --- */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {selectedSubject && (
+            <button onClick={() => setSelectedSubject(null)} className="p-2 bg-white/5 rounded-xl text-slate-400"><ChevronLeft size={20} /></button>
+          )}
+          <h2 className="text-2xl font-display font-bold text-white">
+            {selectedSubject ? selectedSubject : "Study Materials"}
+          </h2>
+        </div>
+        
+        {user.role === 'admin' && (
           <button 
-            onClick={() => setSelectedSubject(null)} 
-            className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-colors"
+            onClick={() => setShowUploadModal(true)}
+            className="bg-brand-accent text-brand-primary p-2 rounded-xl shadow-lg shadow-brand-accent/20 hover:scale-105 active:scale-95 transition-all"
           >
-            <ChevronLeft size={20} />
+            <Plus size={24} />
           </button>
         )}
-        <h2 className="text-2xl font-display font-bold text-white">
-          {selectedSubject ? selectedSubject : "Study Materials"}
-        </h2>
       </div>
-      
-      {user.role === 'admin' && (
-        <button 
-          onClick={() => fileInputRef.current?.click()}
-          className="bg-brand-accent text-brand-primary p-2 rounded-xl shadow-lg shadow-brand-accent/20 hover:scale-105 active:scale-95 transition-all"
-        >
-          <Plus size={20} />
-        </button>
+
+      {/* --- CONTENT LIST --- */}
+      {!selectedSubject ? (
+        <div className="grid grid-cols-2 gap-4">
+          {['Physics', 'Chemistry', 'Maths'].map((sub) => (
+            <div 
+              key={sub}
+              onClick={() => setSelectedSubject(sub)}
+              className="glass p-6 rounded-[2.5rem] flex flex-col items-center gap-3 border border-white/5 hover:border-brand-accent/40 transition-all cursor-pointer group active:scale-95 shadow-xl"
+            >
+              <div className="w-16 h-16 bg-brand-accent/10 rounded-2xl flex items-center justify-center text-brand-accent group-hover:bg-brand-accent group-hover:text-brand-primary transition-all duration-500 shadow-inner">
+                <BookOpen size={32} />
+              </div>
+              <span className="font-bold text-sm tracking-tight">{sub}</span>
+              <div className="px-3 py-1 bg-white/5 rounded-full">
+                 <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest">
+                  {content.filter(c => c.subject === sub).length} Items
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {['note', 'practice_sheet'].map(type => {
+            const items = content.filter(c => c.subject === selectedSubject && c.type === type);
+            
+            // Unique chapters logic to avoid showing "Page 1", "Page 2" separately in the list
+            const uniqueChapters = Array.from(new Set(items.map(i => i.title.split(' (Page')[0])));
+
+            return (
+              <div key={type} className="space-y-4">
+                <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em] ml-2 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-brand-accent rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                  {type === 'note' ? 'Chapter Notes' : 'Practice Sheets'}
+                </h3>
+                <div className="grid gap-3">
+                  {uniqueChapters.map(chapterTitle => {
+                    const firstPage = items.find(i => i.title.startsWith(chapterTitle));
+                    const pageCount = items.filter(i => i.title.startsWith(chapterTitle)).length;
+
+                    return (
+                      <div 
+                        key={chapterTitle} 
+                        onClick={() => setViewingChapter(chapterTitle)}
+                        className="glass p-4 rounded-3xl flex items-center justify-between border border-white/5 group hover:bg-white/10 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 bg-black/20 rounded-2xl overflow-hidden border border-white/10 shadow-inner relative">
+                            <img src={firstPage?.file_url} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all" alt="P" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end justify-center pb-1">
+                              <span className="text-[8px] font-bold text-white/70">{pageCount} Pgs</span>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-white group-hover:text-brand-accent transition-colors">
+                              {chapterTitle}
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-medium">
+                              {new Date(firstPage?.created_at).toLocaleDateString('en-IN')}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-slate-500 group-hover:text-brand-accent group-hover:bg-brand-accent/10 transition-all">
+                          <ChevronLeft size={18} className="rotate-180" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
-
-    {!selectedSubject ? (
-      /* --- FOLDER VIEW --- */
-      <div className="grid grid-cols-2 gap-4">
-        {['Physics', 'Chemistry', 'Maths'].map((sub) => (
-          <div 
-            key={sub}
-            onClick={() => setSelectedSubject(sub)}
-            className="glass p-6 rounded-[2rem] flex flex-col items-center gap-3 border border-white/5 hover:border-brand-accent/40 transition-all cursor-pointer group active:scale-95"
-          >
-            <div className="w-16 h-16 bg-brand-accent/10 rounded-2xl flex items-center justify-center text-brand-accent group-hover:bg-brand-accent group-hover:text-brand-primary transition-all duration-500 shadow-inner">
-              <BookOpen size={32} />
-            </div>
-            <span className="font-bold text-sm tracking-tight">{sub}</span>
-            <div className="px-3 py-1 bg-white/5 rounded-full">
-               <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest">
-                {content.filter(c => c.subject === sub).length} Items
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    ) : (
-      /* --- FILE VIEW --- */
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {['note', 'practice_sheet'].map(type => (
-          <div key={type} className="space-y-4">
-            <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em] ml-2 flex items-center gap-2">
-              <span className="w-1 h-1 bg-brand-accent rounded-full" />
-              {type === 'note' ? 'Chapter Notes' : 'Practice Sheets'}
-            </h3>
-            <div className="grid gap-3">
-              {content
-                .filter(c => c.subject === selectedSubject && c.type === type)
-                .map(c => (
-                <div key={c.id} className="glass p-4 rounded-3xl flex items-center justify-between border border-white/5 group hover:bg-white/10 transition-all">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-black/20 rounded-2xl overflow-hidden border border-white/10 shadow-inner relative">
-                      <img 
-                        src={c.file_url} 
-                        className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" 
-                        alt="Preview" 
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                         <FileText size={16} className="text-white/20 group-hover:opacity-0 transition-opacity" />
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-white leading-tight mb-1 group-hover:text-brand-accent transition-colors">
-                        {c.title}
-                      </p>
-                      <p className="text-[10px] text-slate-500 font-medium">
-                        Added {new Date(c.created_at).toLocaleDateString('en-IN')}
-                      </p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => window.open(c.file_url, '_blank')}
-                    className="h-10 px-5 bg-brand-accent/10 text-brand-accent rounded-2xl text-xs font-bold hover:bg-brand-accent hover:text-brand-primary transition-all active:scale-90"
-                  >
-                    View
-                  </button>
-                </div>
-              ))}
-              {content.filter(c => c.subject === selectedSubject && c.type === type).length === 0 && (
-                <div className="py-8 text-center glass rounded-3xl border-dashed border-white/5">
-                  <p className="text-xs text-slate-600 italic">No {type.replace('_', ' ')}s yet.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-);
+  );
+};
 
 const renderAdminPayments = () => (
   <div className="space-y-6 pb-24">
