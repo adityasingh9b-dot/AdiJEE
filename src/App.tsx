@@ -252,12 +252,14 @@ if (Array.isArray(contentData)) {
           <p className="text-xs text-slate-400">Join the session now</p>
         </div>
       </div>
+      
       <button 
-        onClick={() => setActiveMeetingId(liveClass.meeting_id)}
+        onClick={() => window.open('https://meet.google.com/ngy-qnau-jhr', '_blank')}
         className="bg-brand-secondary text-white px-4 py-2 rounded-xl text-sm font-bold hover:opacity-90"
       >
         Join Now
       </button>
+      
     </div>
     
     {user.role === 'admin' && (
@@ -318,7 +320,8 @@ if (Array.isArray(contentData)) {
               </label>
             ))}
           </div>
-          <button 
+          
+<button 
             onClick={async () => {
               if (selectedStudents.length === 0) {
                 alert('Please select at least one student.');
@@ -334,7 +337,10 @@ if (Array.isArray(contentData)) {
                   invited_students: selectedStudents
                 })
               });
-              setActiveMeetingId(mid);
+              
+              // Admin ko direct Google Meet link par open karega
+              window.open('https://meet.google.com/ngy-qnau-jhr', '_blank');
+
               fetch('/api/live-class').then(res => res.json()).then(setLiveClass);
               setShowStudentSelector(false);
               setSelectedStudents([]);
@@ -343,6 +349,8 @@ if (Array.isArray(contentData)) {
           >
             Start Class & Notify
           </button>
+          
+          
         </div>
       )}
     </div>
@@ -1090,15 +1098,17 @@ const renderAdminPayments = () => (
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button 
+               
+<button 
                   onClick={() => {
-                    setActiveMeetingId(notification.meeting_id);
+                    window.open('https://meet.google.com/ngy-qnau-jhr', '_blank');
                     setNotification(null);
                   }}
                   className="bg-brand-accent text-brand-primary px-4 py-2 rounded-xl text-xs font-black hover:opacity-90 transition-opacity whitespace-nowrap"
                 >
                   Join
                 </button>
+               
                 <button 
                   onClick={() => setNotification(null)}
                   className="text-slate-500 p-2 hover:text-white transition-colors"
