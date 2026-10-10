@@ -32,11 +32,11 @@ export default function App() {
 const fileInputRef = React.useRef<HTMLInputElement>(null);
 
 const [showUploadModal, setShowUploadModal] = useState(false);
-const [isUploading, setIsUploading] = useState(false);
 const [uploadForm, setUploadForm] = useState({ 
   title: '', 
   subject: 'Physics', 
-  type: 'note' 
+  type: 'note',
+  external_link: ''
 });
 
   const [user, setUser] = useState<User | null>(null);
@@ -645,7 +645,9 @@ const renderContent = () => {
         </div>
       )}
 
-      {/* --- UPLOAD MODAL OVERLAY (Same as before) --- */}
+
+
+{/* --- UPLOAD MODAL OVERLAY --- */}
       {showUploadModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-brand-primary/90 backdrop-blur-xl animate-in fade-in duration-300">
           <div className="glass w-full max-w-sm p-6 rounded-[2.5rem] border border-white/10 space-y-5 shadow-2xl">
@@ -659,6 +661,7 @@ const renderContent = () => {
                 <label className="text-[10px] text-slate-500 uppercase font-bold ml-1">Title / Chapter</label>
                 <input 
                   type="text" placeholder="e.g. Rotation"
+                  value={uploadForm.title}
                   className="w-full bg-white/5 border border-white/10 p-3 rounded-2xl text-white outline-none focus:border-brand-accent transition-colors"
                   onChange={(e) => setUploadForm({...uploadForm, title: e.target.value})}
                 />
@@ -690,67 +693,126 @@ const renderContent = () => {
                 </div>
               </div>
 
-              <div className="relative border-2 border-dashed border-white/10 rounded-3xl p-8 text-center hover:border-brand-accent/50 transition-all group">
+              {/* External Web / Drive Link Input */}
+              <div>
+                <label className="text-[10px] text-slate-500 uppercase font-bold ml-1">Or Paste Web / Drive Link (Optional)</label>
                 <input 
-                  type="file" multiple accept="image/*"
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                  disabled={isUploading}
-                  onChange={async (e) => {
-                    const files = Array.from(e.target.files || []);
-                    if (files.length === 0) return;
-                    if (!uploadForm.title) return alert("Please enter a title first!");
+                  type="url" placeholder="https://drive.google.com/..."
+                  value={uploadForm.external_link || ''}
+                  className="w-full bg-white/5 border border-white/10 p-3 rounded-2xl text-white outline-none focus:border-brand-accent transition-colors text-xs"
+                  onChange={(e) => setUploadForm({...uploadForm, external_link: e.target.value})}
+                />
+              </div>
 
+              {/* Action: If External Link is filled, show Save Link button; otherwise show Image Upload Dropzone */}
+              {uploadForm.external_link && uploadForm.external_link.trim() !== '' ? (
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={async () => {
+                    if (!uploadForm.title) return alert("Please enter a title first!");
                     setIsUploading(true);
                     try {
-                      for (const file of files) {
-                        const formData = new FormData();
-                        formData.append('file', file);
-                        formData.append('upload_preset', 'adijee_payments'); 
-                        
-                        const cloudRes = await fetch("https://api.cloudinary.com/v1_1/do7jfmqqf/image/upload", {
-                          method: "POST",
-                          body: formData
-                        });
-                        const cloudData = await cloudRes.json();
+                      const res = await fetch('/api/content', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                          title: uploadForm.title,
+                          type: uploadForm.type, 
+                          file_url: uploadForm.external_link.trim(),
+                          subject: uploadForm.subject, 
+                          student_id: null 
+                        })
+                      });
 
-                        if (cloudData.secure_url) {
-                          await fetch('/api/content', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
-                              title: files.length > 1 ? `${uploadForm.title} (Page ${String(files.indexOf(file) + 1).padStart(2, '0')})` : uploadForm.title,
-                              type: uploadForm.type, 
-                              file_url: cloudData.secure_url,
-                              subject: uploadForm.subject, 
-                              student_id: null 
-                            })
-                          });
-                        }
+                      if (res.ok) {
+                        alert("Drive / Web Link Saved Successfully!");
+                        setShowUploadModal(false);
+                        setUploadForm({ title: '', subject: 'Physics', type: 'note', external_link: '' });
+                        const updatedRes = await fetch(`/api/content?userId=${user?.id}`);
+                        const updatedData = await updatedRes.json();
+                        if (Array.isArray(updatedData)) setContent(updatedData);
+                      } else {
+                        alert("Failed to save link to database.");
                       }
-                      alert(`${files.length} Files Uploaded!`);
-                      setShowUploadModal(false);
-                      const res = await fetch(`/api/content?userId=${user?.id}`);
-                      const data = await res.json();
-                      if (Array.isArray(data)) setContent(data);
                     } catch (err) {
-                      alert("Upload failed!");
+                      console.error("Link Upload Error:", err);
+                      alert("Network error while saving link!");
                     } finally {
                       setIsUploading(false);
                     }
                   }}
-                />
-                <div className="flex flex-col items-center gap-2">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isUploading ? 'bg-brand-accent animate-spin' : 'bg-brand-accent/10 text-brand-accent'}`}>
-                    {isUploading ? <Loader2 size={24} /> : <Upload size={24} />}
+                  className="w-full bg-brand-accent text-brand-primary py-4 rounded-2xl font-bold text-sm shadow-lg hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isUploading ? <Loader2 size={18} className="animate-spin" /> : null}
+                  {isUploading ? 'Saving Link...' : 'Save Drive / Web Link'}
+                </button>
+              ) : (
+                <div className="relative border-2 border-dashed border-white/10 rounded-3xl p-8 text-center hover:border-brand-accent/50 transition-all group">
+                  <input 
+                    type="file" multiple accept="image/*"
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    disabled={isUploading}
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
+                      if (!uploadForm.title) return alert("Please enter a title first!");
+
+                      setIsUploading(true);
+                      try {
+                        for (const file of files) {
+                          const formData = new FormData();
+                          formData.append('file', file);
+                          formData.append('upload_preset', 'adijee_payments'); 
+                          
+                          const cloudRes = await fetch("https://api.cloudinary.com/v1_1/do7jfmqqf/image/upload", {
+                            method: "POST",
+                            body: formData
+                          });
+                          const cloudData = await cloudRes.json();
+
+                          if (cloudData.secure_url) {
+                            await fetch('/api/content', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ 
+                                title: files.length > 1 ? `${uploadForm.title} (Page ${String(files.indexOf(file) + 1).padStart(2, '0')})` : uploadForm.title,
+                                type: uploadForm.type, 
+                                file_url: cloudData.secure_url,
+                                subject: uploadForm.subject, 
+                                student_id: null 
+                              })
+                            });
+                          }
+                        }
+                        alert(`${files.length} Files Uploaded!`);
+                        setShowUploadModal(false);
+                        setUploadForm({ title: '', subject: 'Physics', type: 'note', external_link: '' });
+                        const res = await fetch(`/api/content?userId=${user?.id}`);
+                        const data = await res.json();
+                        if (Array.isArray(data)) setContent(data);
+                      } catch (err) {
+                        alert("Upload failed!");
+                      } finally {
+                        setIsUploading(false);
+                      }
+                    }}
+                  />
+                  <div className="flex flex-col items-center gap-2">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isUploading ? 'bg-brand-accent animate-spin' : 'bg-brand-accent/10 text-brand-accent'}`}>
+                      {isUploading ? <Loader2 size={24} /> : <Upload size={24} />}
+                    </div>
+                    <p className="text-sm font-bold text-white">{isUploading ? 'Uploading...' : 'Tap to Select Images'}</p>
+                    <p className="text-[10px] text-slate-500 font-bold">Multiple Selection Supported</p>
                   </div>
-                  <p className="text-sm font-bold text-white">{isUploading ? 'Uploading...' : 'Tap to Select Images'}</p>
-                  <p className="text-[10px] text-slate-500 font-bold">Multiple Selection Supported</p>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
+
 
       {/* --- HEADER --- */}
       <div className="flex items-center justify-between">
@@ -813,10 +875,16 @@ const renderContent = () => {
                     const firstPage = items.find(i => i.title.startsWith(chapterTitle));
                     const pageCount = items.filter(i => i.title.startsWith(chapterTitle)).length;
 
-                    return (
+return (
                       <div 
                         key={chapterTitle} 
-                        onClick={() => setViewingChapter(chapterTitle)}
+                        onClick={() => {
+                          if (firstPage?.file_url && !firstPage.file_url.includes('cloudinary.com')) {
+                            window.open(firstPage.file_url, '_blank');
+                          } else {
+                            setViewingChapter(chapterTitle);
+                          }
+                        }}
                         className="glass p-4 rounded-3xl flex items-center justify-between border border-white/5 group hover:bg-white/10 transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-4">
@@ -840,6 +908,7 @@ const renderContent = () => {
                         </div>
                       </div>
                     );
+                    
                   })}
                 </div>
               </div>
