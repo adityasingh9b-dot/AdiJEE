@@ -3,12 +3,78 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AdiJEE</title>
+    <title>AdiJEE - Zenith of JEE Excellence</title>
+    
+    <!-- PWA Manifest & Theme -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#10b981" />
+
     <script src="https://meet.ffmuc.net/external_api.js" async></script>
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
-  <body>
+  <body class="bg-zinc-950 text-zinc-100 antialiased min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Custom PWA Install Banner -->
+    <div id="install-banner" style="position: fixed; bottom: 0; left: 0; right: 0; background: #18181b; border-top: 3px solid #10b981; padding: 20px; border-top-left-radius: 24px; border-top-right-radius: 24px; box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.7); display: none; z-index: 99999; font-family: system-ui, -apple-system, sans-serif; max-width: 440px; margin: 0 auto;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 48px; height: 48px; background: #27272a; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1px solid #3f3f46;">
+            <span style="color: #10b981; font-weight: 900; font-size: 1.2rem;">Z</span>
+          </div>
+          <div>
+            <h4 style="margin: 0; color: #ffffff; font-size: 1.05rem; font-weight: 700; text-transform: uppercase;">Install AdiJEE App</h4>
+            <p style="margin: 2px 0 0 0; color: #a1a1aa; font-size: 0.8rem;">Access JEE classes & materials easily</p>
+          </div>
+        </div>
+        <button id="btn-close-banner" style="background: none; border: none; color: #a1a1aa; font-size: 1.6rem; cursor: pointer; padding: 0 4px; line-height: 1;">&times;</button>
+      </div>
+      <button id="btn-install" style="background: #10b981; color: #000000; border: none; width: 100%; padding: 14px; font-size: 0.9rem; font-weight: 800; border-radius: 12px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.25);">
+        Install App
+      </button>
+    </div>
+
+    <script>
+      let deferredPrompt = null;
+      const installBanner = document.getElementById('install-banner');
+      const btnInstall = document.getElementById('btn-install');
+      const btnCloseBanner = document.getElementById('btn-close-banner');
+
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        
+        setTimeout(() => {
+          if (installBanner) {
+            installBanner.style.display = 'block';
+          }
+        }, 1500);
+      });
+
+      btnInstall.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        
+        installBanner.style.display = 'none';
+        deferredPrompt.prompt();
+        
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          console.log('AdiJEE app shortcut added successfully!');
+        }
+        deferredPrompt = null;
+      });
+
+      btnCloseBanner.addEventListener('click', () => {
+        installBanner.style.display = 'none';
+      });
+
+      window.addEventListener('appinstalled', () => {
+        if (installBanner) {
+          installBanner.style.display = 'none';
+        }
+        deferredPrompt = null;
+      });
+    </script>
   </body>
 </html>
-
