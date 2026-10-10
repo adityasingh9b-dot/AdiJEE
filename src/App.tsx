@@ -32,6 +32,7 @@ export default function App() {
 const fileInputRef = React.useRef<HTMLInputElement>(null);
 
 const [showUploadModal, setShowUploadModal] = useState(false);
+const [isUploading, setIsUploading] = useState(false); // <--- Yeh line add karni hai
 const [uploadForm, setUploadForm] = useState({ 
   title: '', 
   subject: 'Physics', 
